@@ -11,5 +11,7 @@ class LinearNodeEncoder(torch.nn.Module):
         self.encoder = torch.nn.Linear(cfg.share.dim_in, emb_dim)
 
     def forward(self, batch):
-        batch.x = self.encoder(batch.x)
+        if batch.x.dtype != float:
+            batch.x = batch.x.float()
+        batch.x = self.encoder(batch.x) # convert to float maybe inneficient
         return batch

@@ -11,11 +11,15 @@ class LinearEdgeEncoder(torch.nn.Module):
             self.in_dim = 1
         elif cfg.dataset.name.startswith('attributed_triangle-'):
             self.in_dim = 2
+        elif cfg.dataset.name in ['ogbg-molbace', 'ogbg-molbbbp', 'ogbg-moltoxcast']:
+            self.in_dim = 3
         else:
             raise ValueError("Input edge feature dim is required to be hardset "
                              "or refactored to use a cfg option.")
         self.encoder = torch.nn.Linear(self.in_dim, emb_dim)
 
     def forward(self, batch):
-        batch.edge_attr = self.encoder(batch.edge_attr.view(-1, self.in_dim))
+        if batch.x.dtype != float:
+            batch.x = batch.x.float()
+        batch.edge_attr = self.encoder(batch.edge_attr.view(-1, self.in_dim)) # convert to float (maybe inneficient)
         return batch

@@ -316,6 +316,9 @@ def add_pe_transform_to_dataset(format, name, dataset_dir, pe_transform=None):
 
         elif name.startswith('PCQM4Mv2Contact-'):
             dataset = preformat_PCQM4Mv2Contact(dataset_dir, name)
+        
+        elif name.startswith('obgn-'):
+            dataset = load_ogb(name, dataset_dir)
 
         else:
             raise ValueError(f"Unsupported OGB(-derived) dataset: {name}")
