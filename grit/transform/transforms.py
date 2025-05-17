@@ -37,7 +37,7 @@ def pre_transform_in_memory(dataset, transform_func, show_progress=False, cfg=di
                  for i in tqdm(range(len(dataset)),
                                disable=not show_progress,
                                mininterval=10,
-                               miniters=len(dataset)//20)]
+                               miniters=(len(dataset)//20 + 1))]
 
 
     data_list = list(filter(None, data_list))

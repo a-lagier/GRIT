@@ -10,6 +10,7 @@ from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_scatter import scatter_add
 from functools import partial
 from .rrwp import add_full_rrwp
+from .SGD_MMSBM import add_mmsbm_enc
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
@@ -34,7 +35,7 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     # Verify PE types.
     for t in pe_types:
         if t not in ['LapPE', 'EquivStableLapPE', 'SignNet',
-                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP']:
+                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP', 'MMSBM']:
             raise ValueError(f"Unexpected PE stats selection {t} in {pe_types}")
 
     # Basic preprocessing of the input graph.
@@ -42,9 +43,11 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
         N = data.num_nodes  # Explicitly given number of nodes, e.g. ogbg-ppa
     else:
         N = data.x.shape[0]  # Number of nodes, including disconnected nodes.
-    laplacian_norm_type = cfg.posenc_LapPE.eigen.laplacian_norm.lower()
-    if laplacian_norm_type == 'none':
-        laplacian_norm_type = None
+
+    if hasattr(cfg, 'posenc_LapPE'):
+        laplacian_norm_type = cfg.posenc_LapPE.eigen.laplacian_norm.lower()
+        if laplacian_norm_type == 'none':
+            laplacian_norm_type = None
     if is_undirected:
         undir_edge_index = data.edge_index
     else:
@@ -135,6 +138,12 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     if 'ElstaticSE' in pe_types:
         elstatic = get_electrostatic_function_encoding(undir_edge_index, N)
         data.pestat_ElstaticSE = elstatic
+    
+    # SBM positional encoding
+    if 'MMSBM' in pe_types:
+        param = cfg.posenc_MMSBM
+        data = add_mmsbm_enc(data, n_communities=param.k)
+        
 
     if 'RRWP' in pe_types:
         param = cfg.posenc_RRWP
@@ -142,10 +151,11 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
                             walk_length=param.ksteps,
                             attr_name_abs="rrwp",
                             attr_name_rel="rrwp",
-                            add_identity=True,
+                            add_identity=param.add_identity,
                             spd=param.spd, # by default False
                             )
         data = transform(data)
+    
 
     return data
 

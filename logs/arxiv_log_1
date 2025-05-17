@@ -1,0 +1,20 @@
+[*] Run ID 1: seed=1, split_index=0
+    Starting now: 2025-05-11 09:30:12.112164
+Downloading http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+Extracting ./datasets/arxiv.zip
+Loading necessary files...
+This might take a while.
+Processing graphs...
+Converting graphs into PyG objects...
+Saving...
+[*] Loaded dataset 'ogbn-arxiv' from 'OGB':
+  Data(num_nodes=169343, edge_index=[2, 2315598], x=[169343, 128], node_year=[169343, 1], y=[169343, 1], train_mask=[169343], val_mask=[169343], test_mask=[169343])
+  undirected: True
+  num graphs: 1
+  avg num_nodes/graph: 169343
+  num node features: 128
+  num edge features: 0
+  num tasks: 1
+  num classes: 40
+Precomputing Positional Encoding statistics: ['RRWP'] for all graphs...
+  ...estimated to be undirected: True

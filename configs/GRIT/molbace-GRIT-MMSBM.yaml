@@ -1,0 +1,74 @@
+out_dir: results
+metric_best: auc
+tensorboard_each_run: True  # Log to Tensorboard each run
+mlflow:
+  use: False
+  project: Exp
+  name: molbace-GRIT-MMSBM
+wandb:
+  use: False
+  project: molbace
+dataset:
+  format: OGB
+  name: ogbg-molbace
+  task: graph
+  task_type: classification
+  transductive: False
+  node_encoder: True
+  node_encoder_name: Atom
+  edge_encoder: True
+  edge_encoder_name: Bond
+  pe_transform_on_the_fly: False
+posenc_MMSBM:
+  enable: True
+  k: 10
+train:
+  mode: custom
+  batch_size: 34
+  eval_period: 1
+  ckpt_period: 100
+  sampler: full_batch
+model:
+  type: GritTransformer
+  loss_fun: cross_entropy
+  edge_decoding: dot
+  graph_pooling: add
+gt:
+  layer_type: GritTransformer
+  layers: 4
+  n_heads: 3
+  dim_hidden: 100  # `gt.dim_hidden` must match `gnn.dim_inner`
+  dropout: 0.0
+  layer_norm: False
+  batch_norm: True
+  update_e: True
+  attn_dropout: 0.2
+  attn:
+    clamp: 5.
+    act: 'relu'
+    full_attn: True
+    edge_enhance: True
+    O_e: True
+    norm_e: True
+    fwl: False
+gnn:
+  layers_pre_mp: 1
+  layers_mp: 2
+  layers_post_mp: 1
+  dim_inner: 100
+  layer_type: generalconv
+  stage_type: stack
+  batchnorm: True
+  act: prelu
+  dropout: 0.0
+  agg: mean
+  normalize_adj: False
+optim:
+  clip_grad_norm: True
+  optimizer: adamW
+  weight_decay: 1e-5
+  base_lr: 1e-3
+  max_epoch: 2000
+  num_warmup_epochs: 50
+  scheduler: cosine_with_warmup
+  min_lr: 1e-6

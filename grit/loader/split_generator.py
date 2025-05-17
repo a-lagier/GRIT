@@ -2,11 +2,16 @@ import json
 import logging
 import os
 
+import random
+import torch
+from tqdm import tqdm
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+from torch_geometric.data import InMemoryDataset, download_url
 import numpy as np
 from sklearn.model_selection import KFold, StratifiedKFold, ShuffleSplit
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import index2mask, set_dataset_attr
-
 
 def prepare_splits(dataset):
     """Ready train/val/test splits.
@@ -233,3 +238,302 @@ def create_cv_splits(dataset, cv_type, k, file_name):
     with open(file_name, 'w') as f:
         json.dump(splits, f)
     logging.info(f"[*] Saved newly generated CV splits by {kf} to {file_name}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+class PartitionedGraphDataset(InMemoryDataset):
+    """
+    A class that mimics the interface of PygGraphPropPredDataset for partitioned graphs.
+    This class holds the partitioned subgraphs and provides an interface similar to 
+    PyTorch Geometric datasets.
+    """
+    
+    def __init__(self, subgraphs, name = "partitioned_dataset"):
+        """
+        Initialize a new partitioned graph dataset.
+        
+        Args:
+            subgraphs: Dictionary mapping partition IDs to PyTorch Geometric Data objects
+            name: Name of the dataset
+        """
+        self.subgraphs = subgraphs
+        self.name = name
+        self.partition_ids = sorted(list(subgraphs.keys()))
+        self._indices = list(range(len(self.partition_ids)))
+        
+        # Extract metadata from subgraphs
+        sample_graph = list(subgraphs.values())[0]
+        self.num_features = sample_graph.x.shape[1] if hasattr(sample_graph, 'x') and sample_graph.x is not None else 0
+        self.num_classes = 0
+        
+        if hasattr(sample_graph, 'y') and sample_graph.y is not None:
+            if sample_graph.y.dim() > 0:
+                self.num_classes = sample_graph.y.shape[1] if sample_graph.y.dim() > 1 else 1
+        
+        # Create a task type (node or graph prediction)
+        sample_y = sample_graph.y if hasattr(sample_graph, 'y') else None
+        if sample_y is not None:
+            if sample_y.shape[0] == sample_graph.num_nodes:
+                self.task_type = 'node'
+            else:
+                self.task_type = 'graph'
+        else:
+            self.task_type = 'unknown'
+    
+    def __len__(self):
+        """Return the number of partitions."""
+        return len(self.partition_ids)
+    
+    def __getitem__(self, idx):
+        """Get a specific partition by index."""
+        if isinstance(idx, int):
+            partition_id = self.partition_ids[idx]
+            return self.subgraphs[partition_id]
+        elif isinstance(idx, slice):
+            indices = range(*idx.indices(len(self)))
+            return [self[i] for i in indices]
+        elif isinstance(idx, list):
+            return [self[i] for i in idx]
+        else:
+            raise TypeError("Invalid index type")
+    
+    def get(self, idx):
+        return self.__getitem__(idx)
+    
+    def get_idx_split(self):
+        """
+        Get dataset splits. This mimics the API of PygGraphPropPredDataset.
+        In this implementation, all partitions are assigned to the 'train' split.
+        
+        Returns:
+            Dictionary mapping split names to tensors of indices
+        """
+        return {
+            'train': torch.tensor(self._indices, dtype=torch.long),
+            'valid': torch.tensor([], dtype=torch.long),
+            'test': torch.tensor([], dtype=torch.long)
+        }
+    
+    def get_partition(self, partition_id: int):
+        """Get a specific partition by its ID."""
+        return self.subgraphs[partition_id]
+    
+    def to(self, device):
+        """Move all subgraphs to the specified device."""
+        for partition_id in self.partition_ids:
+            self.subgraphs[partition_id] = self.subgraphs[partition_id].to(device)
+        return self
+
+
+
+
+
+
+
+
+def create_subgraphs(data, partition_dict):
+    """
+    Create subgraphs for each partition.
+    
+    Args:
+        data: PyTorch Geometric Data object
+        partition_dict: Dictionary mapping partition IDs to lists of node indices
+        
+    Returns:
+        Dictionary mapping partition IDs to PyTorch Geometric Data objects
+    """
+    subgraphs = {}
+    
+    for part, nodes in partition_dict.items():
+        # Create node mapping from original to new indices
+        node_idx = torch.tensor(nodes, dtype=torch.long)
+        node_mapping = {int(old_idx): new_idx for new_idx, old_idx in enumerate(node_idx)}
+        
+        # Filter edges within this partition
+        mask1 = torch.isin(data.edge_index[0], node_idx)
+        mask2 = torch.isin(data.edge_index[1], node_idx)
+        mask = mask1 & mask2
+        edge_index = data.edge_index[:, mask]
+        
+        # Remap node indices
+        new_edge_index = torch.zeros_like(edge_index)
+        for i in range(edge_index.shape[1]):
+            new_edge_index[0, i] = node_mapping[int(edge_index[0, i])]
+            new_edge_index[1, i] = node_mapping[int(edge_index[1, i])]
+        
+        # Filter and remap node features
+        x = data.x[node_idx] if hasattr(data, 'x') and data.x is not None else None
+        
+        # Create new Data object
+        subgraph = Data(x=x, edge_index=new_edge_index)
+        
+        # Add other attributes if they exist
+        if hasattr(data, 'y') and data.y is not None:
+            if data.y.shape[0] == data.num_nodes:  # Node-level targets
+                subgraph.y = data.y[node_idx]
+            else:  # Graph-level targets
+                subgraph.y = data.y
+                
+        # Add original node indices for reference
+        subgraph.original_indices = node_idx
+        
+        subgraphs[part] = subgraph
+    
+    return PartitionedGraphDataset(subgraphs)
+
+def compute_partition_metrics(data, partition_dict):
+    """
+    Compute metrics to evaluate the quality of the partitioning.
+    
+    Args:
+        data: PyTorch Geometric Data object
+        partition_dict: Dictionary mapping partition IDs to lists of node indices
+        
+    Returns:
+        Dictionary of metrics
+    """
+    edge_index = data.edge_index
+    num_edges = edge_index.shape[1]
+    num_nodes = data.num_nodes
+    
+    # Calculate edge cut
+    edge_cut = 0
+    
+    # Create a mapping from node to partition
+    node_to_part = {}
+    for part, nodes in partition_dict.items():
+        for node in nodes:
+            node_to_part[node] = part
+    
+    # Count edges between different partitions
+    for i in range(num_edges):
+        src, dst = int(edge_index[0, i]), int(edge_index[1, i])
+        if node_to_part.get(src) != node_to_part.get(dst):
+            edge_cut += 1
+    
+    # Calculate partition size statistics
+    part_sizes = [len(nodes) for nodes in partition_dict.values()]
+    avg_size = sum(part_sizes) / len(part_sizes)
+    max_size = max(part_sizes)
+    min_size = min(part_sizes)
+    size_imbalance = max_size / avg_size
+    
+    metrics = {
+        'edge_cut': edge_cut,
+        'edge_cut_ratio': edge_cut / num_edges,
+        'avg_partition_size': avg_size,
+        'max_partition_size': max_size,
+        'min_partition_size': min_size,
+        'size_imbalance': size_imbalance
+    }
+    
+    return metrics
+
+
+def random_partition(data, num_parts):
+    """
+    Partition a PyTorch Geometric graph randomly.
+    
+    Args:
+        data: PyTorch Geometric Data object
+        num_parts: Number of partitions to create
+        
+    Returns:
+        Dictionary mapping partition IDs to lists of node indices
+    """
+    n_nodes = data.num_nodes
+    nodes = list(range(n_nodes))
+    random.shuffle(nodes)
+    
+    partition_dict = {}
+    for i, node in enumerate(nodes):
+        part = i % num_parts
+        if part not in partition_dict:
+            partition_dict[part] = []
+        partition_dict[part].append(node)
+    
+    return partition_dict
+
+def edge_partition(data, num_parts, max_iter=10):
+    """
+    Partition a PyTorch Geometric graph using a simple edge-cut heuristic.
+    
+    Args:
+        data: PyTorch Geometric Data object
+        num_parts: Number of partitions to create
+        max_iter: Maximum number of iterations for refinement
+        
+    Returns:
+        Dictionary mapping partition IDs to lists of node indices
+    """
+    # Start with a random partition
+    partition_dict = random_partition(data, num_parts)
+    edge_index = data.edge_index
+    
+    # Mapping from node to partition
+    node_to_part = {}
+    for part, nodes in partition_dict.items():
+        for node in nodes:
+            node_to_part[node] = part
+    
+    # Iteratively refine the partition
+    for _ in range(max_iter):
+        changes_made = 0
+        
+        # For each node, check if moving it to another partition would reduce edge cuts
+        for node in tqdm(range(data.num_nodes)):
+            current_part = node_to_part[node]
+            
+            # Find all neighbors
+            mask = (edge_index[0] == node) | (edge_index[1] == node)
+            neighbors1 = edge_index[1][edge_index[0] == node]
+            neighbors2 = edge_index[0][edge_index[1] == node]
+            neighbors = torch.cat([neighbors1, neighbors2]).tolist()
+            
+            # Count neighbors in each partition
+            part_counts = {}
+            for neighbor in neighbors:
+                neighbor_part = node_to_part.get(neighbor, current_part)
+                part_counts[neighbor_part] = part_counts.get(neighbor_part, 0) + 1
+            
+            # Find best partition (with most neighbors)
+            best_part = current_part
+            best_count = part_counts.get(current_part, 0)
+            
+            for part, count in part_counts.items():
+                if count > best_count:
+                    best_part = part
+                    best_count = count
+            
+            # Move node if beneficial
+            if best_part != current_part:
+                partition_dict[current_part].remove(node)
+                partition_dict[best_part].append(node)
+                node_to_part[node] = best_part
+                changes_made += 1
+        
+        # Stop if no improvements
+        if changes_made == 0:
+            break
+    
+    return partition_dict
+
+def split_graph(dataset, num_parts=10, partition_method='edge'):
+    if partition_method == 'edge':
+        partition = edge_partition(dataset, num_parts)
+    else:
+        partition = random_partition(dataset, num_parts)
+
+    print(compute_partition_metrics(dataset, partition))
+
+    pyg_dataset = create_subgraphs(dataset, partition)

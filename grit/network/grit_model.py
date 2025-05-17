@@ -64,16 +64,26 @@ class GritTransformer(torch.nn.Module):
         self.ablation = True
         self.ablation = False
 
-        if cfg.posenc_RRWP.enable:
+        if hasattr(cfg, 'posenc_RRWP'):
             self.rrwp_abs_encoder = register.node_encoder_dict["rrwp_linear"]\
                 (cfg.posenc_RRWP.ksteps, cfg.gnn.dim_inner)
             rel_pe_dim = cfg.posenc_RRWP.ksteps
             self.rrwp_rel_encoder = register.edge_encoder_dict["rrwp_linear"] \
-                (rel_pe_dim, cfg.gnn.dim_edge,
+                (rel_pe_dim, cfg.gnn.dim_edge if hasattr(cfg.gnn, 'dim_edge') else cfg.gnn.dim_inner,
                  pad_to_full_graph=cfg.gt.attn.full_attn,
                  add_node_attr_as_self_loop=False,
                  fill_value=0.
                  )
+        if hasattr(cfg, 'posenc_MMSBM'):
+            self.mmsbm_abs_encoder = register.node_encoder_dict["mmsbm_linear"] \
+                (cfg.posenc_MMSBM.k, cfg.gnn.dim_inner)
+            rel_pe_dim = cfg.posenc_MMSBM.k
+            self.mmsbm_rel_encoder = register.edge_encoder_dict["mmsbm_linear"] \
+                (rel_pe_dim, cfg.gnn.dim_edge if hasattr(cfg.gnn, 'dim_edge') else cfg.gnn.dim_inner,
+                pad_to_full_graph=cfg.gt.attn.full_attn,
+                add_node_attr_as_self_loop=False,
+                fill_value=0.
+                )
 
 
         if cfg.gnn.layers_pre_mp > 0:
@@ -109,6 +119,10 @@ class GritTransformer(torch.nn.Module):
 
         self.layers = torch.nn.Sequential(*layers)
         GNNHead = register.head_dict[cfg.gnn.head]
+
+        if cfg.dataset.name in ['ogbg-moltoxcast']: # hard coded out dimension for the GNNHead
+            dim_out = 617
+        
         self.post_mp = GNNHead(dim_in=cfg.gnn.dim_inner, dim_out=dim_out)
 
     def forward(self, batch):

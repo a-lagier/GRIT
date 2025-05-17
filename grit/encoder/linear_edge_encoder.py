@@ -7,11 +7,11 @@ from torch_geometric.graphgym.register import register_edge_encoder
 class LinearEdgeEncoder(torch.nn.Module):
     def __init__(self, emb_dim):
         super().__init__()
-        if cfg.dataset.name in ['MNIST', 'CIFAR10']:
+        if cfg.dataset.name in ['MNIST', 'CIFAR10'] or cfg.dataset.name.startswith('ogbl-'):
             self.in_dim = 1
         elif cfg.dataset.name.startswith('attributed_triangle-'):
             self.in_dim = 2
-        elif cfg.dataset.name in ['ogbg-molbace', 'ogbg-molbbbp', 'ogbg-moltoxcast']:
+        elif cfg.dataset.name.startswith('ogbg-'):
             self.in_dim = 3
         else:
             raise ValueError("Input edge feature dim is required to be hardset "

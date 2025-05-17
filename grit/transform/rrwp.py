@@ -48,15 +48,24 @@ def add_full_rrwp(data,
     num_nodes = data.num_nodes
     edge_index, edge_weight = data.edge_index, data.edge_weight
 
+    # print(edge_index)
+    # print(data)
     adj = SparseTensor.from_edge_index(edge_index, edge_weight,
                                        sparse_sizes=(num_nodes, num_nodes),
                                        )
+    # print("GRaph adj desc")
+    # print(num_nodes)
+    # print(adj)
+    # print(adj.sizes())
 
     # Compute D^{-1} A:
     deg = adj.sum(dim=1)
-    deg_inv = 1.0 / adj.sum(dim=1)
+    deg_inv = 1.0 / deg
     deg_inv[deg_inv == float('inf')] = 0
-    adj = adj * deg_inv.view(-1, 1)
+    # print(deg_inv.view(-1, 1).shape)
+    # print(deg_inv.shape)
+    # print(deg_inv.diag().shape)
+    adj = adj * deg_inv.view(-1, 1) # view(-1,1)
     adj = adj.to_dense()
 
     pe_list = []

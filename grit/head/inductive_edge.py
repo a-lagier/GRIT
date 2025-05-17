@@ -131,11 +131,13 @@ class GNNInductiveEdgeHead(nn.Module):
             hits1_list = (ranking_list <= 1).to(torch.float)
             hits3_list = (ranking_list <= 3).to(torch.float)
             hits10_list = (ranking_list <= 10).to(torch.float)
+            hits20_list = (ranking_list <= 20).to(torch.float)
             mrr_list = 1. / ranking_list.to(torch.float)
 
             return {'hits@1_list': hits1_list,
                     'hits@3_list': hits3_list,
                     'hits@10_list': hits10_list,
+                    'hits@20_list': hits20_list,
                     'mrr_list': mrr_list}
 
         else:
@@ -147,9 +149,11 @@ class GNNInductiveEdgeHead(nn.Module):
             hits1_list = (ranking_list <= 1).astype(np.float32)
             hits3_list = (ranking_list <= 3).astype(np.float32)
             hits10_list = (ranking_list <= 10).astype(np.float32)
+            hits20_list = (ranking_list <= 20).astype(np.float32)
             mrr_list = 1. / ranking_list.astype(np.float32)
 
             return {'hits@1_list': hits1_list,
                     'hits@3_list': hits3_list,
                     'hits@10_list': hits10_list,
+                    'hits@20_list': hits20_list,
                     'mrr_list': mrr_list}

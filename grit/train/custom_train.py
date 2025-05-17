@@ -237,7 +237,7 @@ def custom_train(loggers, loaders, model, optimizer, scheduler):
                             if cfg.mlflow.use:
                                 mlflow.log_metric(f"best_{s}_perf", perf[i][best_epoch][m])
 
-                        for x in ['hits@1', 'hits@3', 'hits@10', 'mrr']:
+                        for x in ['hits@1', 'hits@3', 'hits@10', 'hits@20', 'mrr']:
                             if x in perf[i][best_epoch]:
                                 bstats[f"best/{s}_{x}"] = perf[i][best_epoch][x]
                     if cfg.wandb.use:

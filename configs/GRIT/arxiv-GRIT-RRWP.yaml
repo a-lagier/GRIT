@@ -1,7 +1,6 @@
 # Original:  zinc-GRIT-2000.yaml
 out_dir: results
-metric_best: auc
-metric_agg: argmin
+metric_best: accuracy
 tensorboard_each_run: True  # Log to Tensorboard each run
 accelerator: "cuda:0"
 mlflow:
@@ -25,6 +24,7 @@ dataset:
   edge_encoder_name: TypeDictEdge
   edge_encoder_num_types: 4
   edge_encoder_bn: False
+  pe_transform_on_the_fly: False
 posenc_RRWP:
   enable: True
   ksteps: 21

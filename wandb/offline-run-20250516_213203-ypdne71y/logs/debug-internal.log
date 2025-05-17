@@ -1,0 +1,16 @@
+{"time":"2025-05-16T21:32:03.397578-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/Users/alexandre/Cours/M1/internship/GRIT/wandb/offline-run-20250516_213203-ypdne71y/logs/debug-core.log"}
+{"time":"2025-05-16T21:32:03.412953-04:00","level":"ERROR","msg":"monitor: failed to initialize GPU asset: monitor: could not start GPU binary: fork/exec /Users/alexandre/opt/anaconda3/envs/grit/lib/python3.9/site-packages/wandb/bin/gpu_stats: bad CPU type in executable"}
+{"time":"2025-05-16T21:32:03.415957-04:00","level":"WARN","msg":"GraphQL client is nil, skipping feature loading"}
+{"time":"2025-05-16T21:32:03.417487-04:00","level":"INFO","msg":"created new stream","id":"ypdne71y"}
+{"time":"2025-05-16T21:32:03.417559-04:00","level":"INFO","msg":"stream: started","id":"ypdne71y"}
+{"time":"2025-05-16T21:32:03.417617-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:03.417703-04:00","level":"INFO","msg":"sender: started","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:03.417981-04:00","level":"INFO","msg":"handler: started","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:03.487424-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-16T21:32:23.644541-04:00","level":"INFO","msg":"stream: closing","id":"ypdne71y"}
+{"time":"2025-05-16T21:32:23.645325-04:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-16T21:32:23.645387-04:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-16T21:32:23.646857-04:00","level":"INFO","msg":"sender: closed","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:23.647004-04:00","level":"INFO","msg":"handler: closed","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:23.647006-04:00","level":"INFO","msg":"writer: Close: closed","stream_id":"ypdne71y"}
+{"time":"2025-05-16T21:32:23.647376-04:00","level":"INFO","msg":"stream: closed","id":"ypdne71y"}

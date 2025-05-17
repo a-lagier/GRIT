@@ -192,6 +192,13 @@ class CustomLogger(Logger):
             'mse': reformat(mean_squared_error(true, pred)),
             'rmse': reformat(mean_squared_error(true, pred, squared=False)),
         }
+    
+    def link_prediction(self):
+        true, pred = torch.cat(self._true), torch.cat(self._pred)
+        reformat = lambda x: round(float(x), cfg.round)
+
+        print(true.shape, pred.shape)
+        print(true, pred)
 
     def update_stats(self, true, pred, loss, lr, time_used, params,
                      dataset_name=None, **kwargs):
@@ -245,6 +252,8 @@ class CustomLogger(Logger):
             task_stats = self.classification_multilabel()
         elif self.task_type == 'subtoken_prediction':
             task_stats = self.subtoken_prediction()
+        elif self.task_type == "link_pred":
+            task_stats = self.link_prediction()
         else:
             raise ValueError('Task has to be regression or classification')
 

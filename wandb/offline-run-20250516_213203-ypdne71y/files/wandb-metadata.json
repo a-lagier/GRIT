@@ -1,0 +1,48 @@
+{
+  "os": "macOS-10.16-x86_64-i386-64bit",
+  "python": "CPython 3.9.21",
+  "startedAt": "2025-05-17T01:32:03.349182Z",
+  "args": [
+    "--cfg",
+    "configs/GRIT/ddi-GRIT-MMSBM.yaml",
+    "wandb.use",
+    "True",
+    "accelerator",
+    "cpu",
+    "optim.max_epoch",
+    "2",
+    "seed",
+    "1",
+    "dataset.dir",
+    "./datasets/"
+  ],
+  "program": "/Users/alexandre/Cours/M1/internship/GRIT/main.py",
+  "codePath": "main.py",
+  "git": {
+    "remote": "git@github.com:a-lagier/GRIT.git",
+    "commit": "1d116716e3c2afc9fb704bbbb9e686935c42bd47"
+  },
+  "root": "/Users/alexandre/Cours/M1/internship/GRIT",
+  "host": "MacBook-Pro-de-Alexandre.local",
+  "executable": "/Users/alexandre/opt/anaconda3/envs/grit/bin/python",
+  "codePathLocal": "main.py",
+  "cpu_count": 4,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "204981624832",
+      "used": "185630945280"
+    },
+    "/System/Volumes/Data": {
+      "total": "204981624832",
+      "used": "185630945280"
+    }
+  },
+  "memory": {
+    "total": "17179869184"
+  },
+  "cpu": {
+    "count": 4,
+    "countLogical": 8
+  }
+}

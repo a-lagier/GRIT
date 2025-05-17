@@ -1,0 +1,9 @@
+{"time":"2025-05-14T13:24:27.020655-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/Users/alexandre/Cours/M1/internship/GRIT/wandb/offline-run-20250514_132426-2f14tz8g/logs/debug-core.log"}
+{"time":"2025-05-14T13:24:27.04239-04:00","level":"ERROR","msg":"monitor: failed to initialize GPU asset: monitor: could not start GPU binary: fork/exec /Users/alexandre/opt/anaconda3/envs/grit/lib/python3.9/site-packages/wandb/bin/gpu_stats: bad CPU type in executable"}
+{"time":"2025-05-14T13:24:27.048675-04:00","level":"WARN","msg":"GraphQL client is nil, skipping feature loading"}
+{"time":"2025-05-14T13:24:27.05029-04:00","level":"INFO","msg":"created new stream","id":"2f14tz8g"}
+{"time":"2025-05-14T13:24:27.05067-04:00","level":"INFO","msg":"stream: started","id":"2f14tz8g"}
+{"time":"2025-05-14T13:24:27.050957-04:00","level":"INFO","msg":"handler: started","stream_id":"2f14tz8g"}
+{"time":"2025-05-14T13:24:27.051037-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"2f14tz8g"}
+{"time":"2025-05-14T13:24:27.05114-04:00","level":"INFO","msg":"sender: started","stream_id":"2f14tz8g"}
+{"time":"2025-05-14T13:24:27.061775-04:00","level":"INFO","msg":"Starting system monitor"}

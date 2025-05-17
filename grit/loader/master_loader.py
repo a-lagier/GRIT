@@ -10,7 +10,7 @@ import torch_geometric.transforms as T
 from numpy.random import default_rng
 from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.datasets import (GNNBenchmarkDataset, Planetoid, TUDataset,
-                                      WikipediaNetwork, ZINC)
+                                      WikipediaNetwork, ZINC, Flickr, LINKXDataset)
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import load_pyg, load_ogb, set_dataset_attr
 from torch_geometric.graphgym.register import register_loader
@@ -21,6 +21,7 @@ from grit.loader.dataset.malnet_tiny import MalNetTiny
 from grit.loader.dataset.voc_superpixels import VOCSuperpixels
 from grit.loader.split_generator import (prepare_splits,
                                          set_dataset_splits)
+from grit.loader.partitioner import Partitioner, PartitionedGraphDataset, partition_and_convert_to_dataset, example_load_existing_partitions
 from grit.transform.posenc_stats import compute_posenc_stats, ComputePosencStat
 from grit.transform.transforms import (pre_transform_in_memory,
                                        typecast_x, concat_x_and_pos,
@@ -97,9 +98,11 @@ def load_dataset_master(format, name, dataset_dir):
     Returns:
         PyG dataset object with applied perturbation transforms and data splits
     """
+    dataset_dir_completed = False
     if format.startswith('PyG-'):
         pyg_dataset_id = format.split('-', 1)[1]
         dataset_dir = osp.join(dataset_dir, pyg_dataset_id)
+        dataset_dir_completed = True
 
         if pyg_dataset_id == 'GNNBenchmarkDataset':
             dataset = preformat_GNNBenchmarkDataset(dataset_dir, name)
@@ -135,6 +138,12 @@ def load_dataset_master(format, name, dataset_dir):
 
         elif pyg_dataset_id == 'SyntheticCounting':
             dataset = preformat_Counting(dataset_dir, name)
+        
+        elif pyg_dataset_id == "Flickr":
+            dataset = preformat_Flickr(dataset_dir)
+
+        elif pyg_dataset_id == "Penn94":
+            dataset = preformat_Penn94(dataset_dir, name)
 
         else:
             raise ValueError(f"Unexpected PyG Dataset identifier: {format}")
@@ -170,11 +179,47 @@ def load_dataset_master(format, name, dataset_dir):
         elif name.startswith('PCQM4Mv2Contact-'):
             dataset = preformat_PCQM4Mv2Contact(dataset_dir, name)
 
+        elif name.startswith('ogbn-'):
+            dataset = load_ogb(name, dataset_dir)
+
         else:
             raise ValueError(f"Unsupported OGB(-derived) dataset: {name}")
     else:
         raise ValueError(f"Unknown data format: {format}")
     log_loaded_dataset(dataset, format, name)
+
+
+    # add possibility to split graph into smaller graphs
+    # print(vars(dataset))
+    #
+    #
+    #
+
+    # if not dataset_dir_completed:
+    #     dataset_dir = osp.join(dataset_dir, name.replace('-', '_'))
+
+    # if the graph have a large number of nodes, we partitioned them
+    # if np.mean([graph.num_nodes for graph in dataset]) > 1e4:
+    #     num_partitions = 100
+
+    #     if not osp.exists(osp.join(dataset_dir, 'part_0')):
+    #         dataset = partition_and_convert_to_dataset(dataset[0], num_parts=num_partitions, partition_dir=dataset_dir)
+    #     else:
+    #         dataset = example_load_existing_partitions(partition_dir=dataset_dir)
+        # for data in dataset:
+            # num_partitions = 200
+# 
+            # p = Partitioner(dataset, num_parts=num_partitions, root=dataset_dir)
+            # 
+            # if the partitions have not been made yet, generate them 
+            # if not osp.exists(osp.join(dataset_dir, 'part_0')):
+                # p.generate_partition()
+            # 
+            # dataset = p.load_partition_info()
+    # 
+    #
+    #
+    # END
 
     # Precompute necessary statistics for positional encodings.
     pe_enabled_list = []
@@ -283,6 +328,11 @@ def add_pe_transform_to_dataset(format, name, dataset_dir, pe_transform=None):
         elif pyg_dataset_id == 'SyntheticCounting':
             dataset = preformat_Counting(dataset_dir, name)
 
+        elif pyg_dataset_id == "Flickr":
+            dataset = preformat_Flickr(dataset_dir)
+        
+        elif pyg_dataset_id == "Penn94":
+            dataset = preformat_Penn94(dataset_dir, name)
         else:
             raise ValueError(f"Unexpected PyG Dataset identifier: {format}")
 
@@ -317,7 +367,7 @@ def add_pe_transform_to_dataset(format, name, dataset_dir, pe_transform=None):
         elif name.startswith('PCQM4Mv2Contact-'):
             dataset = preformat_PCQM4Mv2Contact(dataset_dir, name)
         
-        elif name.startswith('obgn-'):
+        elif name.startswith('ogbn-'):
             dataset = load_ogb(name, dataset_dir)
 
         else:
@@ -715,6 +765,34 @@ def preformat_COCOSuperpixels(dataset_dir, name, slic_compactness):
         [COCOSuperpixels(root=dataset_dir, name=name,
                          slic_compactness=slic_compactness,
                          split=split)
+         for split in ['train', 'val', 'test']]
+    )
+    return dataset
+
+def preformat_Flickr(dataset_dir):
+    """Load and preformat Flickr dataset.
+
+    Args:
+        dataset_dir: path where to store the cached dataset
+    Returns:
+        PyG dataset object
+    """
+    dataset = join_dataset_splits(
+        [Flickr(root=dataset_dir)
+         for split in ['train', 'val', 'test']]
+    )
+    return dataset
+
+def preformat_Penn94(dataset_dir, name):
+    """Load and preformat Penn94 dataset.
+
+    Args:
+        dataset_dir: path where to store the cached dataset
+    Returns:
+        PyG dataset object
+    """
+    dataset = join_dataset_splits(
+        [LINKXDataset(root=dataset_dir, name=name)
          for split in ['train', 'val', 'test']]
     )
     return dataset
