@@ -10,7 +10,8 @@ import torch_geometric.transforms as T
 from numpy.random import default_rng
 from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.datasets import (GNNBenchmarkDataset, Planetoid, TUDataset,
-                                      WikipediaNetwork, ZINC, Flickr, LINKXDataset)
+                                      WikipediaNetwork, ZINC, Flickr, LINKXDataset, MovieLens100K,
+                                      StochasticBlockModelDataset)
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import load_pyg, load_ogb, set_dataset_attr
 from torch_geometric.graphgym.register import register_loader
@@ -21,7 +22,6 @@ from grit.loader.dataset.malnet_tiny import MalNetTiny
 from grit.loader.dataset.voc_superpixels import VOCSuperpixels
 from grit.loader.split_generator import (prepare_splits,
                                          set_dataset_splits)
-from grit.loader.partitioner import Partitioner, PartitionedGraphDataset, partition_and_convert_to_dataset, example_load_existing_partitions
 from grit.transform.posenc_stats import compute_posenc_stats, ComputePosencStat
 from grit.transform.transforms import (pre_transform_in_memory,
                                        typecast_x, concat_x_and_pos,
@@ -142,8 +142,14 @@ def load_dataset_master(format, name, dataset_dir):
         elif pyg_dataset_id == "Flickr":
             dataset = preformat_Flickr(dataset_dir)
 
-        elif pyg_dataset_id == "Penn94":
+        elif pyg_dataset_id == 'Penn94':
             dataset = preformat_Penn94(dataset_dir, name)
+        
+        elif pyg_dataset_id == 'MovieLens100k':
+            dataset = preformat_MovieLens100k(dataset_dir)
+        
+        elif pyg_dataset_id == 'StochasticBlockModel':
+            dataset = preformat_StochasticBlockModel(dataset_dir)
 
         else:
             raise ValueError(f"Unexpected PyG Dataset identifier: {format}")
@@ -328,11 +334,18 @@ def add_pe_transform_to_dataset(format, name, dataset_dir, pe_transform=None):
         elif pyg_dataset_id == 'SyntheticCounting':
             dataset = preformat_Counting(dataset_dir, name)
 
-        elif pyg_dataset_id == "Flickr":
+        elif pyg_dataset_id == 'Flickr':
             dataset = preformat_Flickr(dataset_dir)
         
-        elif pyg_dataset_id == "Penn94":
+        elif pyg_dataset_id == 'Penn94':
             dataset = preformat_Penn94(dataset_dir, name)
+        
+        elif pyg_dataset_id == 'MovieLens100k':
+            dataset = preformat_MovieLens100k(dataset_dir)
+        
+        elif pyg_dataset_id == 'StochasticBlockModel':
+            dataset = preformat_StochasticBlockModel(dataset_dir)
+
         else:
             raise ValueError(f"Unexpected PyG Dataset identifier: {format}")
 
@@ -778,7 +791,7 @@ def preformat_Flickr(dataset_dir):
         PyG dataset object
     """
     dataset = join_dataset_splits(
-        [Flickr(root=dataset_dir)
+        [Flickr(root=dataset_dir, split=split)
          for split in ['train', 'val', 'test']]
     )
     return dataset
@@ -792,9 +805,41 @@ def preformat_Penn94(dataset_dir, name):
         PyG dataset object
     """
     dataset = join_dataset_splits(
-        [LINKXDataset(root=dataset_dir, name=name)
+        [LINKXDataset(root=dataset_dir, name=name, split=split)
          for split in ['train', 'val', 'test']]
     )
+    return dataset
+
+def preformat_MovieLens100k(dataset_dir):
+    """Load and preformat MovieLens100k dataset.
+
+    Args:
+        dataset_dir: path where to store the cached dataset
+    Returns:
+        PyG dataset object
+    """
+    dataset = join_dataset_splits(
+        [MovieLens100K(root=dataset_dir, split=split)
+         for split in ['train', 'val', 'test']]
+    )
+    return dataset
+
+def preformat_StochasticBlockModel(dataset_dir, block_sizes=[20,20], edge_probs=[[0.49,1e-2],[1e-2,0.49]], no_split=False):
+    """Load and preformat StochasticBlockModel dataset.
+
+    Args:
+        dataset_dir: path where to store the cached dataset
+    Returns:
+        PyG dataset object
+    """
+
+    if no_split:
+        dataset = StochasticBlockModelDataset(root=dataset_dir, block_sizes=block_sizes, edge_probs=edge_probs)
+    else:
+        dataset = join_dataset_splits(
+            [StochasticBlockModelDataset(root=dataset_dir, block_sizes=block_sizes, edge_probs=edge_probs, split=split)
+            for split in ['train', 'val', 'test']]
+        )
     return dataset
 
 

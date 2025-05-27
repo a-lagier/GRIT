@@ -59,8 +59,11 @@ class GritTransformer(torch.nn.Module):
     def __init__(self, dim_in, dim_out):
         super().__init__()
         self.encoder = FeatureEncoder(dim_in)
-        dim_in = self.encoder.dim_in
-
+        #! dimension issue when there is no edge/node encoder
+        if cfg.dataset.node_encoder or cfg.dataset.edge_encoder:
+            dim_in = self.encoder.dim_in
+        else:
+            dim_in = self.gnn.dim_inner
         self.ablation = True
         self.ablation = False
 

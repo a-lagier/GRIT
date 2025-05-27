@@ -194,11 +194,39 @@ class CustomLogger(Logger):
         }
     
     def link_prediction(self):
+        '''
+            compute mrr
+            y_pred_neg is an array with shape (batch size, num_entities_neg).
+            y_pred_pos is an array with shape (batch size, )
+        '''
         true, pred = torch.cat(self._true), torch.cat(self._pred)
         reformat = lambda x: round(float(x), cfg.round)
 
-        print(true.shape, pred.shape)
-        print(true, pred)
+        y_pred_neg = pred
+        y_pred_pos = true
+
+        # calculate ranks
+        y_pred_pos = y_pred_pos.view(-1, 1)
+        # optimistic rank: "how many negatives have a larger score than the positive?"
+        # ~> the positive is ranked first among those with equal score
+        optimistic_rank = (y_pred_neg > y_pred_pos).sum(dim=1)
+        # pessimistic rank: "how many negatives have at least the positive score?"
+        # ~> the positive is ranked last among those with equal score
+        pessimistic_rank = (y_pred_neg >= y_pred_pos).sum(dim=1)
+        ranking_list = 0.5 * (optimistic_rank + pessimistic_rank) + 1
+        
+        N = len(ranking_list)
+
+        hits1_list = (ranking_list <= 1).to(torch.float)
+        hits3_list = (ranking_list <= 3).to(torch.float)
+        hits10_list = (ranking_list <= 10).to(torch.float)
+        hits20_list = (ranking_list <= 20).to(torch.float)
+        mrr_list = 1./ranking_list.to(torch.float)
+        return {'hits@1': reformat(hits1_list.sum() / N),
+                'hits@3': reformat(hits3_list.sum() / N),
+                'hits@10': reformat(hits10_list.sum() / N),
+                'hits@20': reformat(hits20_list.sum() / N),
+                'mrr': reformat(mrr_list.sum() / N)}
 
     def update_stats(self, true, pred, loss, lr, time_used, params,
                      dataset_name=None, **kwargs):

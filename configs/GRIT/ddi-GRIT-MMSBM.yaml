@@ -17,11 +17,7 @@ dataset:
   task_type: subtoken_prediction
   transductive: False
   node_encoder: False
-  node_encoder_name: LinearNode
-  node_encoder_bn: False
   edge_encoder: False
-  edge_encoder_name: LinearEdge
-  edge_encoder_bn: False
   pe_transform_on_the_fly: False
 posenc_MMSBM:
   enable: True

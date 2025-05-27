@@ -28,6 +28,9 @@ from grit.finetuning import load_pretrained_model_cfg, \
 from grit.logger import create_logger
 
 
+from torch.autograd.profiler import record_function
+
+
 def new_optimizer_config(cfg):
     return OptimizerConfig(optimizer=cfg.optim.optimizer,
                            base_lr=cfg.optim.base_lr,
@@ -131,56 +134,78 @@ if __name__ == '__main__':
     # Set Pytorch environment
     torch.set_num_threads(cfg.num_threads)
     # Repeat for multiple experiment runs
-    for run_id, seed, split_index in zip(*run_loop_settings()):
-        # Set configurations for each run
-        custom_set_run_dir(cfg, run_id)
-        set_printing()
-        cfg.dataset.split_index = split_index
-        cfg.seed = seed
-        cfg.run_id = run_id
-        seed_everything(cfg.seed)
-        # note: enable to not use `auto_select_device`; for multiple jobs on multiple gpus
-        #   please set `accelerator={device}` instead
-        if cfg.get("auto_select_device", False):
-            auto_select_device()
-        else:
-            cfg.device = cfg.accelerator # "cuda:0"
-        # ------------------------------------------------------------
 
-        if cfg.pretrained.dir:
-            cfg = load_pretrained_model_cfg(cfg)
-        logging.info(f"[*] Run ID {run_id}: seed={cfg.seed}, "
-                     f"split_index={cfg.dataset.split_index}")
-        logging.info(f"    Starting now: {datetime.datetime.now()}")
-        # Set machine learning pipeline
-        loaders = create_loader()
-        loggers = create_logger()
-        model = create_model()
-        if cfg.pretrained.dir:
-            model = init_model_from_pretrained(
-                model, cfg.pretrained.dir, cfg.pretrained.freeze_main,
-                cfg.pretrained.reset_prediction_head
-            )
-        optimizer = create_optimizer(model.parameters(),
-                                     new_optimizer_config(cfg))
-        scheduler = create_scheduler(optimizer, new_scheduler_config(cfg))
-        # Print model info
-        logging.info(model)
-        logging.info(cfg)
-        cfg.params = params_count(model)
-        logging.info('Num parameters: %s', cfg.params)
-        # Start training
-        if cfg.train.mode == 'standard':
-            if cfg.wandb.use:
-                logging.warning("[W] WandB logging is not supported with the "
-                                "default train.mode, set it to `custom`")
-            if cfg.mlflow.use:
-                logging.warning("[ML] MLflow logging is not supported with the "
-                                "default train.mode, set it to `custom`")
-            train(loggers, loaders, model, optimizer, scheduler)
-        else:
-            train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
-                                       scheduler)
+    # torch.cuda.memory._record_memory_history(max_entries=100000)
+
+    with torch.profiler.profile(
+       activities=[
+           torch.profiler.ProfilerActivity.CPU,
+        #    torch.profiler.ProfilerActivity.CUDA,
+       ],
+       schedule=torch.profiler.schedule(wait=0, warmup=0, active=6, repeat=1),
+       record_shapes=True,
+       profile_memory=True,
+       with_stack=True,
+   ) as prof:
+
+        for run_id, seed, split_index in zip(*run_loop_settings()):
+            # Set configurations for each run
+            custom_set_run_dir(cfg, run_id)
+            set_printing()
+            cfg.dataset.split_index = split_index
+            cfg.seed = seed
+            cfg.run_id = run_id
+            seed_everything(cfg.seed)
+
+            print(f"Start run {seed}")
+            # note: enable to not use `auto_select_device`; for multiple jobs on multiple gpus
+            #   please set `accelerator={device}` instead
+            if cfg.get("auto_select_device", False):
+                auto_select_device()
+            else:
+                cfg.device = cfg.accelerator # "cuda:0"
+            # ------------------------------------------------------------
+
+            if cfg.pretrained.dir:
+                cfg = load_pretrained_model_cfg(cfg)
+            logging.info(f"[*] Run ID {run_id}: seed={cfg.seed}, "
+                        f"split_index={cfg.dataset.split_index}")
+            logging.info(f"    Starting now: {datetime.datetime.now()}")
+            # Set machine learning pipeline
+
+            with record_function("RRWP"):
+                loaders = create_loader()
+            loggers = create_logger()
+            model = create_model()
+            if cfg.pretrained.dir:
+                model = init_model_from_pretrained(
+                    model, cfg.pretrained.dir, cfg.pretrained.freeze_main,
+                    cfg.pretrained.reset_prediction_head
+                )
+            optimizer = create_optimizer(model.parameters(),
+                                        new_optimizer_config(cfg))
+            scheduler = create_scheduler(optimizer, new_scheduler_config(cfg))
+            # Print model info
+            logging.info(model)
+            logging.info(cfg)
+            cfg.params = params_count(model)
+            logging.info('Num parameters: %s', cfg.params)
+            # Start training
+            if cfg.train.mode == 'standard':
+                if cfg.wandb.use:
+                    logging.warning("[W] WandB logging is not supported with the "
+                                    "default train.mode, set it to `custom`")
+                if cfg.mlflow.use:
+                    logging.warning("[ML] MLflow logging is not supported with the "
+                                    "default train.mode, set it to `custom`")
+                with record_function("Training"):
+                    train(loggers, loaders, model, optimizer, scheduler)
+            else:
+                train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
+                                        scheduler)
+            print(f"End run {seed}")
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
     # Aggregate results from different seeds
     try:
         agg_runs(cfg.out_dir, cfg.metric_best)
@@ -190,3 +215,6 @@ if __name__ == '__main__':
     if args.mark_done:
         os.rename(args.cfg_file, f'{args.cfg_file}_done')
     logging.info(f"[*] All done: {datetime.datetime.now()}")
+
+    torch.cuda.memory._dump_snapshot("profile.pkl")
+    torch.cuda.memory._record_memory_history(enabled=None)

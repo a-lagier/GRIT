@@ -271,6 +271,8 @@ class GritTransformerLayer(nn.Module):
             h = torch.stack([h, h * log_deg], dim=-1)
             h = (h * self.deg_coef).sum(dim=-1)
 
+        h = h.float()
+        
         h = self.O_h(h)
         if e_attn_out is not None:
             e = e_attn_out.flatten(1)

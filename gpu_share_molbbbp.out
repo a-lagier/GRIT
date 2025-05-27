@@ -1,0 +1,363 @@
+accelerator: cuda:0
+benchmark: False
+best_by_loss: False
+bn:
+  eps: 1e-05
+  mom: 0.1
+cfg_dest: config.yaml
+cfg_file: configs/GRIT/molbbbp-GRIT-RRWP.yaml
+custom_metrics: []
+dataset:
+  cache_load: False
+  cache_save: False
+  dir: ./datasets
+  edge_dim: 128
+  edge_encoder: True
+  edge_encoder_bn: True
+  edge_encoder_name: Bond
+  edge_encoder_num_types: 0
+  edge_message_ratio: 0.8
+  edge_negative_sampling_ratio: 1.0
+  edge_train_mode: all
+  encoder: True
+  encoder_bn: True
+  encoder_dim: 128
+  encoder_name: db
+  format: OGB
+  label_column: none
+  label_table: none
+  location: local
+  name: ogbg-molbbbp
+  node_encoder: True
+  node_encoder_bn: True
+  node_encoder_name: Atom
+  node_encoder_num_types: 0
+  pe_transform_on_the_fly: False
+  remove_feature: False
+  resample_disjoint: False
+  resample_negative: False
+  shuffle_split: True
+  slic_compactness: 10
+  split: [0.8, 0.1, 0.1]
+  split_dir: ./splits
+  split_index: 0
+  split_mode: standard
+  task: graph
+  task_type: classification
+  to_undirected: False
+  transductive: False
+  transform: none
+  tu_simple: True
+device: cuda:0
+devices: None
+example_arg: example
+example_group:
+  example_arg: example
+gnn:
+  act: prelu
+  agg: mean
+  att_final_linear: False
+  att_final_linear_bn: False
+  att_heads: 1
+  batchnorm: True
+  clear_feature: True
+  dim_inner: 100
+  dropout: 0.0
+  head: graph
+  keep_edge: 0.5
+  l2norm: True
+  layer_type: generalconv
+  layers_mp: 2
+  layers_post_mp: 1
+  layers_pre_mp: 1
+  msg_direction: single
+  normalize_adj: False
+  residual: False
+  self_msg: concat
+  skip_every: 1
+  stage_type: stack
+gpu_mem: False
+gt:
+  attn:
+    O_e: True
+    act: relu
+    clamp: 5.0
+    deg_scaler: True
+    edge_enhance: True
+    full_attn: True
+    fwl: False
+    norm_e: True
+    sparse: False
+    use: True
+    use_bias: False
+  attn_dropout: 0.2
+  batch_norm: True
+  bigbird:
+    add_cross_attention: False
+    attention_type: block_sparse
+    block_size: 3
+    chunk_size_feed_forward: 0
+    hidden_act: relu
+    is_decoder: False
+    layer_norm_eps: 1e-06
+    max_position_embeddings: 128
+    num_random_blocks: 3
+    use_bias: False
+  bn_momentum: 0.1
+  bn_no_runner: False
+  dim_hidden: 100
+  dropout: 0.3
+  full_graph: True
+  gamma: 1e-05
+  layer_norm: False
+  layer_type: GritTransformer
+  layers: 2
+  n_heads: 5
+  pna_degrees: []
+  residual: True
+  update_e: True
+mem:
+  inplace: False
+metric_agg: argmax
+metric_best: auc
+mlflow:
+  name: molbbbp-GRIT-RRWP
+  project: Exp
+  use: False
+model:
+  edge_decoding: dot
+  graph_pooling: add
+  loss_fun: cross_entropy
+  match_upper: True
+  size_average: mean
+  thresh: 0.5
+  type: gnn
+name_tag: 
+num_threads: 6
+num_workers: 0
+optim:
+  base_lr: 0.1
+  batch_accumulation: 1
+  clip_grad_norm: True
+  early_stop_by_lr: True
+  early_stop_by_perf: False
+  lr_decay: 0.1
+  max_epoch: 5
+  min_lr: 1e-06
+  min_lr_mode: threshold
+  momentum: 0.9
+  num_cycles: 0.5
+  num_warmup_epochs: 10
+  optimizer: adamW
+  reduce_factor: 0.5
+  schedule_patience: 10
+  scheduler: cosine_with_warmup
+  steps: [30, 60, 90]
+  stop_patience: 100
+  weight_decay: 1e-05
+out_dir: results/molbbbp-GRIT-RRWP
+posenc_RRWP:
+  add_identity: True
+  add_inverse: False
+  add_node_attr: False
+  enable: True
+  ksteps: 20
+  spd: False
+pretrained:
+  dir: 
+  freeze_main: False
+  reset_prediction_head: True
+print: both
+round: 5
+run_dir: results/molbbbp-GRIT-RRWP/65
+run_id: 65
+run_multiple_splits: []
+seed: 65
+share:
+  dim_in: 9
+  dim_out: 2
+  num_splits: 3
+tensorboard_agg: True
+tensorboard_each_run: True
+train:
+  auto_resume: False
+  batch_size: 30
+  ckpt_best: True
+  ckpt_clean: True
+  ckpt_period: 100
+  enable_ckpt: True
+  epoch_resume: -1
+  eval_period: 1
+  iter_per_epoch: 32
+  mode: custom
+  neighbor_sizes: [20, 15, 10, 5]
+  node_per_graph: 32
+  radius: extend
+  sample_node: False
+  sampler: full_batch
+  skip_train_eval: False
+  walk_length: 4
+val:
+  node_per_graph: 32
+  radius: extend
+  sample_node: False
+  sampler: full_batch
+view_emb: False
+wandb:
+  entity: gtransformers
+  name: 
+  project: molbbbp
+  use: False
+work_dir: /home/alagier/GRIT
+Num parameters: 69804
+Start from epoch 0
+train: {'epoch': 0, 'time_epoch': 5.31615, 'eta': 21.26458, 'eta_hours': 0.00591, 'loss': 0.60722382, 'lr': 1e-07, 'params': 69804, 'time_iter': 0.09666, 'accuracy': 0.68853, 'precision': 0.87337, 'recall': 0.73557, 'f1': 0.79857, 'auc': 0.595}
+...computing epoch stats took: 0.88s
+val: {'epoch': 0, 'time_epoch': 0.19501, 'loss': 0.74347927, 'lr': 0, 'params': 69804, 'time_iter': 0.02786, 'accuracy': 0.57843, 'precision': 0.48951, 'recall': 0.84337, 'f1': 0.61947, 'auc': 0.65867}
+...computing epoch stats took: 0.02s
+test: {'epoch': 0, 'time_epoch': 0.18666, 'loss': 0.74597991, 'lr': 0, 'params': 69804, 'time_iter': 0.02667, 'accuracy': 0.54412, 'precision': 0.54601, 'recall': 0.82407, 'f1': 0.65683, 'auc': 0.53241}
+...computing epoch stats took: 0.02s
+> Epoch 0: took 6.6s (avg 6.6s) | Best so far: epoch 0	train_loss: 0.6072 train_auc: 0.5950	val_loss: 0.7435 val_auc: 0.6587	test_loss: 0.7460 test_auc: 0.5324
+-----------------------------------------------------------
+train: {'epoch': 1, 'time_epoch': 1.45416, 'eta': 10.15546, 'eta_hours': 0.00282, 'loss': 0.45996727, 'lr': 0.01, 'params': 69804, 'time_iter': 0.02644, 'accuracy': 0.83507, 'precision': 0.86618, 'recall': 0.95033, 'f1': 0.9063, 'auc': 0.68622}
+...computing epoch stats took: 0.02s
+val: {'epoch': 1, 'time_epoch': 0.11112, 'loss': 0.55063921, 'lr': 0, 'params': 69804, 'time_iter': 0.01587, 'accuracy': 0.76471, 'precision': 0.64228, 'recall': 0.95181, 'f1': 0.76699, 'auc': 0.88509}
+...computing epoch stats took: 0.02s
+test: {'epoch': 1, 'time_epoch': 0.10255, 'loss': 1.19065478, 'lr': 0, 'params': 69804, 'time_iter': 0.01465, 'accuracy': 0.54902, 'precision': 0.54706, 'recall': 0.86111, 'f1': 0.66906, 'auc': 0.58449}
+...computing epoch stats took: 0.02s
+> Epoch 1: took 1.7s (avg 4.2s) | Best so far: epoch 1	train_loss: 0.4600 train_auc: 0.6862	val_loss: 0.5506 val_auc: 0.8851	test_loss: 1.1907 test_auc: 0.5845
+-----------------------------------------------------------
+train: {'epoch': 2, 'time_epoch': 1.41874, 'eta': 5.45936, 'eta_hours': 0.00152, 'loss': 0.34495042, 'lr': 0.02, 'params': 69804, 'time_iter': 0.0258, 'accuracy': 0.87676, 'precision': 0.89891, 'recall': 0.96129, 'f1': 0.92905, 'auc': 0.81306}
+...computing epoch stats took: 0.02s
+val: {'epoch': 2, 'time_epoch': 0.11298, 'loss': 1.12101359, 'lr': 0, 'params': 69804, 'time_iter': 0.01614, 'accuracy': 0.59314, 'precision': 0.5, 'recall': 0.95181, 'f1': 0.6556, 'auc': 0.84646}
+...computing epoch stats took: 0.02s
+test: {'epoch': 2, 'time_epoch': 0.10314, 'loss': 1.88467272, 'lr': 0, 'params': 69804, 'time_iter': 0.01473, 'accuracy': 0.54902, 'precision': 0.54255, 'recall': 0.94444, 'f1': 0.68919, 'auc': 0.56559}
+...computing epoch stats took: 0.02s
+> Epoch 2: took 1.7s (avg 3.3s) | Best so far: epoch 1	train_loss: 0.4600 train_auc: 0.6862	val_loss: 0.5506 val_auc: 0.8851	test_loss: 1.1907 test_auc: 0.5845
+-----------------------------------------------------------
+train: {'epoch': 3, 'time_epoch': 1.42819, 'eta': 2.40431, 'eta_hours': 0.00067, 'loss': 0.34434945, 'lr': 0.03, 'params': 69804, 'time_iter': 0.02597, 'accuracy': 0.86695, 'precision': 0.89452, 'recall': 0.95398, 'f1': 0.92329, 'auc': 0.81183}
+val: {'epoch': 3, 'time_epoch': 0.11524, 'loss': 0.63593042, 'lr': 0, 'params': 69804, 'time_iter': 0.01646, 'accuracy': 0.78431, 'precision': 0.66387, 'recall': 0.95181, 'f1': 0.78218, 'auc': 0.8598}
+test: {'epoch': 3, 'time_epoch': 0.10196, 'loss': 1.12805838, 'lr': 0, 'params': 69804, 'time_iter': 0.01457, 'accuracy': 0.56373, 'precision': 0.55491, 'recall': 0.88889, 'f1': 0.68327, 'auc': 0.57427}
+> Epoch 3: took 1.7s (avg 2.9s) | Best so far: epoch 1	train_loss: 0.4600 train_auc: 0.6862	val_loss: 0.5506 val_auc: 0.8851	test_loss: 1.1907 test_auc: 0.5845
+-----------------------------------------------------------
+train: {'epoch': 4, 'time_epoch': 1.43037, 'eta': 0.0, 'eta_hours': 0.0, 'loss': 0.32283923, 'lr': 0.04, 'params': 69804, 'time_iter': 0.02601, 'accuracy': 0.87983, 'precision': 0.89655, 'recall': 0.96859, 'f1': 0.93118, 'auc': 0.83199}
+val: {'epoch': 4, 'time_epoch': 0.11332, 'loss': 0.55712664, 'lr': 0, 'params': 69804, 'time_iter': 0.01619, 'accuracy': 0.79902, 'precision': 0.68103, 'recall': 0.95181, 'f1': 0.79397, 'auc': 0.91457}
+test: {'epoch': 4, 'time_epoch': 0.10136, 'loss': 1.58790402, 'lr': 0, 'params': 69804, 'time_iter': 0.01448, 'accuracy': 0.56373, 'precision': 0.55621, 'recall': 0.87037, 'f1': 0.6787, 'auc': 0.5841}
+> Epoch 4: took 1.7s (avg 2.7s) | Best so far: epoch 4	train_loss: 0.3228 train_auc: 0.8320	val_loss: 0.5571 val_auc: 0.9146	test_loss: 1.5879 test_auc: 0.5841
+-----------------------------------------------------------
+Avg time per epoch: 2.69s
+Total train loop time: 0.00h
+Task done, results saved in results/molbbbp-GRIT-RRWP/65
+STAGE:2025-05-23 10:42:26 2396050:2396050 ActivityProfilerController.cpp:318] Completed Stage: Collection
+STAGE:2025-05-23 10:42:27 2396050:2396050 ActivityProfilerController.cpp:322] Completed Stage: Post Processing
+End run 65
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg       CPU Mem  Self CPU Mem      CUDA Mem  Self CUDA Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                          ProfilerStep*        19.90%        4.214s        89.45%       18.937s       18.937s       0.000us         0.00%     205.260ms     205.260ms     137.41 Mb      -1.90 Mb      17.09 Mb      -4.97 Gb             1  
+autograd::engine::evaluate_function: EmbeddingBackwa...         0.08%      17.475ms         1.43%     301.683ms     121.892us       0.000us         0.00%     127.249ms      51.414us           0 b           0 b     -64.02 Mb     -82.80 Mb          2475  
+                         aten::embedding_dense_backward         0.20%      43.079ms         1.28%     270.254ms     109.194us     119.117ms        28.08%     127.249ms      51.414us           0 b           0 b      18.66 Mb     -13.42 Mb          2475  
+                               aten::embedding_backward         0.03%       7.105ms         1.31%     276.560ms     111.741us       0.000us         0.00%     126.785ms      51.226us           0 b           0 b      18.66 Mb      22.50 Kb          2475  
+                                     EmbeddingBackward0         0.03%       6.849ms         1.34%     283.101ms     114.384us       0.000us         0.00%     126.693ms      51.189us           0 b           0 b      18.66 Mb      96.00 Kb          2475  
+void at::native::(anonymous namespace)::embedding_ba...         0.00%       0.000us         0.00%       0.000us       0.000us     119.159ms        28.09%     119.159ms      48.145us           0 b           0 b           0 b           0 b          2475  
+                                            aten::copy_         1.26%     267.277ms         2.05%     433.347ms       9.227us      72.748ms        17.15%      73.768ms       1.571us    -105.41 Kb    -105.41 Kb           0 b           0 b         46963  
+                                         aten::_to_copy         0.53%     112.123ms         3.12%     659.485ms      28.063us       0.000us         0.00%      67.700ms       2.881us     727.05 Kb      85.25 Kb     756.73 Mb           0 b         23500  
+                         Memcpy HtoD (Pinned -> Device)         0.00%       0.000us         0.00%       0.000us       0.000us      64.805ms        15.28%      64.805ms      17.076us           0 b           0 b           0 b           0 b          3795  
+                                               aten::to         0.30%      62.479ms         3.28%     695.274ms      10.387us       0.000us         0.00%      61.710ms       0.922us     726.87 Kb      58.60 Kb     756.73 Mb      71.23 Mb         66938  
+                                               aten::mm         2.49%     526.267ms         3.00%     635.060ms      15.219us      45.222ms        10.66%      46.486ms       1.114us      96.78 Mb      96.78 Mb     891.13 Mb     891.13 Mb         41727  
+       autograd::engine::evaluate_function: MmBackward0         0.10%      21.959ms         0.89%     189.294ms     137.668us       0.000us         0.00%      29.429ms      21.403us           0 b           0 b    -297.11 Mb    -700.30 Mb          1375  
+                                            MmBackward0         0.08%      16.407ms         0.74%     156.638ms     113.919us       0.000us         0.00%      28.725ms      20.891us           0 b           0 b     403.19 Mb           0 b          1375  
+                                aten::native_batch_norm         0.34%      72.261ms         1.28%     270.134ms     156.599us      24.164ms         5.70%      25.042ms      14.517us           0 b           0 b     470.05 Mb           0 b          1725  
+                                       aten::batch_norm         0.04%       8.203ms         1.47%     310.605ms     180.061us       0.000us         0.00%      25.026ms      14.508us           0 b           0 b     469.73 Mb      -3.24 Mb          1725  
+                           aten::_batch_norm_impl_index         0.08%      17.099ms         1.42%     301.210ms     174.614us       0.000us         0.00%      24.839ms      14.399us           0 b           0 b     470.05 Mb       3.18 Mb          1725  
+                                     aten::index_select         0.44%      92.711ms         1.98%     419.647ms      86.883us      18.909ms         4.46%      19.276ms       3.991us           0 b           0 b       1.81 Gb           0 b          4830  
+autograd::engine::evaluate_function: NativeBatchNorm...         0.12%      24.371ms         0.83%     174.972ms     127.252us       0.000us         0.00%      18.920ms      13.760us           0 b           0 b    -350.15 Mb    -701.65 Mb          1375  
+                               NativeBatchNormBackward0         0.04%       8.721ms         0.71%     150.601ms     109.528us       0.000us         0.00%      18.920ms      13.760us           0 b           0 b     351.49 Mb           0 b          1375  
+                       aten::native_batch_norm_backward         0.21%      45.133ms         0.67%     141.880ms     103.185us      18.719ms         4.41%      18.920ms      13.760us           0 b           0 b     351.49 Mb      -2.40 Mb          1375  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 21.171s
+Self CUDA time total: 424.229ms
+
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ---------------------------------------------------------------------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg       CPU Mem  Self CPU Mem      CUDA Mem  Self CUDA Mem    # of Calls                                                                 Input Shapes  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ---------------------------------------------------------------------------  
+                                          ProfilerStep*        19.90%        4.214s        89.45%       18.937s       18.937s       0.000us         0.00%     205.260ms     205.260ms     137.41 Mb      -1.90 Mb      17.09 Mb      -4.97 Gb             1                                                                           []  
+                                                   RRWP        11.66%        2.468s        23.29%        4.930s        4.930s       0.000us         0.00%       0.000us       0.000us     137.41 Mb    -484.74 Mb           0 b           0 b             1                                                                           []  
+                                       cudaLaunchKernel        18.87%        3.995s        18.87%        3.995s      50.947us       7.799ms         1.84%       7.799ms       0.099us           0 b           0 b           0 b           0 b         78413                                                                           []  
+enumerate(DataLoader)#_SingleProcessDataLoaderIter._...         9.33%        1.976s        16.08%        3.403s       9.454ms       0.000us         0.00%     634.000us       1.761us       1.42 Mb    -804.24 Mb           0 b           0 b           360                                                                           []  
+                                              aten::cat         3.85%     814.344ms         4.96%        1.050s     133.177us     618.000us         0.15%     625.000us       0.079us     954.06 Mb     954.06 Mb     265.00 Kb     265.00 Kb          7887                                                                     [[], []]  
+                              Optimizer.step#AdamW.step         1.25%     265.040ms         3.85%     814.124ms       2.960ms       0.000us         0.00%      14.671ms      53.349us         116 b          16 b     549.00 Kb     -73.72 Mb           275                                                                           []  
+                 aten::binary_cross_entropy_with_logits         0.13%      27.705ms         2.59%     548.241ms       1.661ms       0.000us         0.00%       8.343ms      25.282us           0 b           0 b     165.00 Kb    -826.00 Kb           330                                                     [[30], [30], [], [], []]  
+                                            aten::stack         0.53%     112.171ms         2.18%     460.908ms     105.883us       0.000us         0.00%     552.000us       0.127us     128.45 Mb           0 b     137.50 Kb           0 b          4353                                                                     [[], []]  
+                                    aten::empty_strided         1.27%     268.611ms         2.18%     460.514ms      12.691us       0.000us         0.00%       0.000us       0.000us     641.80 Kb     641.80 Kb       1.89 Gb       1.89 Gb         36288                                                     [[], [], [], [], [], []]  
+                               aten::linalg_vector_norm         0.04%       7.725ms         1.99%     420.658ms      26.291ms      54.000us         0.01%      58.000us       3.625us           0 b           0 b      48.00 Kb      48.00 Kb            16                                                 [[672, 100], [], [], [], []]  
+                                            aten::empty         1.70%     360.354ms         1.70%     360.354ms       4.816us       0.000us         0.00%       0.000us       0.000us      11.93 Mb      11.93 Mb     375.23 Mb     375.23 Mb         74829                                                     [[], [], [], [], [], []]  
+                                              aten::max         0.02%       3.796ms         1.61%     341.904ms      42.738ms      34.000us         0.01%      34.000us       4.250us           0 b           0 b       4.00 Kb           0 b             8                                                                     [[1466]]  
+                                          aten::argsort         0.00%      74.000us         1.58%     334.996ms      66.999ms       0.000us         0.00%     305.000us      61.000us           0 b           0 b      71.50 Kb     -26.00 Kb             5                                                             [[1631], [], []]  
+                                             aten::sort         1.43%     302.440ms         1.58%     334.922ms      66.984ms     283.000us         0.07%     305.000us      61.000us           0 b           0 b      97.50 Kb      32.50 Kb             5                                                             [[1631], [], []]  
+autograd::engine::evaluate_function: EmbeddingBackwa...         0.08%      17.475ms         1.43%     301.683ms     121.892us       0.000us         0.00%     127.249ms      51.414us           0 b           0 b     -64.02 Mb     -82.80 Mb          2475                                                                           []  
+autograd::engine::evaluate_function: LinalgVectorNor...         0.13%      26.901ms         1.40%     295.452ms     268.593us       0.000us         0.00%      10.441ms       9.492us           0 b           0 b    -286.26 Mb    -575.26 Mb          1100                                                                           []  
+                                           aten::select         1.10%     232.177ms         1.12%     236.340ms       4.456us       0.000us         0.00%       0.000us       0.000us           0 b           0 b           0 b           0 b         53039                                                             [[2040], [], []]  
+                                               aten::to         0.00%      10.000us         1.04%     221.126ms     221.126ms       0.000us         0.00%       6.000us       6.000us           0 b           0 b      46.50 Kb           0 b             1                                     [[119, 100], [], [], [], [], [], [], []]  
+                                         aten::_to_copy         0.00%      30.000us         1.04%     221.116ms     221.116ms       0.000us         0.00%       6.000us       6.000us           0 b           0 b      46.50 Kb           0 b             1                                         [[119, 100], [], [], [], [], [], []]  
+                                    aten::_foreach_sqrt         0.12%      25.529ms         1.00%     212.648ms     773.265us       1.919ms         0.45%       1.950ms       7.091us           0 b           0 b      73.72 Mb           0 b           275                                                                         [[]]  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ---------------------------------------------------------------------------  
+Self CPU time total: 21.171s
+Self CUDA time total: 424.229ms
+
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg       CPU Mem  Self CPU Mem      CUDA Mem  Self CUDA Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                          ProfilerStep*        19.90%        4.214s        89.45%       18.937s       18.937s       0.000us         0.00%     205.260ms     205.260ms     137.41 Mb      -1.90 Mb      17.09 Mb      -4.97 Gb             1  
+                                       cudaLaunchKernel        18.87%        3.995s        18.87%        3.995s      50.947us       7.799ms         1.84%       7.799ms       0.099us           0 b           0 b           0 b           0 b         78413  
+                                                   RRWP        11.66%        2.468s        23.29%        4.930s        4.930s       0.000us         0.00%       0.000us       0.000us     137.41 Mb    -484.74 Mb           0 b           0 b             1  
+enumerate(DataLoader)#_SingleProcessDataLoaderIter._...         9.33%        1.976s        16.08%        3.403s       9.454ms       0.000us         0.00%     634.000us       1.761us       1.42 Mb    -804.24 Mb           0 b           0 b           360  
+                                              aten::cat         3.85%     814.344ms         4.96%        1.050s     133.177us     618.000us         0.15%     625.000us       0.079us     954.06 Mb     954.06 Mb     265.00 Kb     265.00 Kb          7887  
+                                               aten::mm         2.49%     526.267ms         3.00%     635.060ms      15.219us      45.222ms        10.66%      46.486ms       1.114us      96.78 Mb      96.78 Mb     891.13 Mb     891.13 Mb         41727  
+                                           aten::select         1.93%     408.437ms         1.97%     416.089ms       3.724us       0.000us         0.00%       0.000us       0.000us           0 b           0 b           0 b           0 b        111740  
+                                            aten::empty         1.70%     360.354ms         1.70%     360.354ms       4.816us       0.000us         0.00%       0.000us       0.000us      11.93 Mb      11.93 Mb     375.23 Mb     375.23 Mb         74829  
+                                             aten::sort         1.62%     343.159ms         1.93%     408.613ms     197.780us     853.000us         0.20%     922.000us       0.446us       1.63 Mb     918.11 Kb     127.50 Kb      42.50 Kb          2066  
+                                            aten::slice         1.55%     328.608ms         1.60%     338.471ms       3.139us       0.000us         0.00%       0.000us       0.000us           0 b           0 b           0 b           0 b        107820  
+                                    aten::empty_strided         1.27%     268.611ms         2.18%     460.514ms      12.691us       0.000us         0.00%       0.000us       0.000us     641.80 Kb     641.80 Kb       1.89 Gb       1.89 Gb         36288  
+                                            aten::copy_         1.26%     267.277ms         2.05%     433.347ms       9.227us      72.748ms        17.15%      73.768ms       1.571us    -105.41 Kb    -105.41 Kb           0 b           0 b         46963  
+                              Optimizer.step#AdamW.step         1.25%     265.040ms         3.85%     814.124ms       2.960ms       0.000us         0.00%      14.671ms      53.349us         116 b          16 b     549.00 Kb     -73.72 Mb           275  
+                                            aten::index         1.09%     231.505ms         1.66%     350.917ms      56.590us     292.000us         0.07%     292.000us       0.047us     106.28 Mb     106.28 Mb     212.50 Kb     212.50 Kb          6201  
+                       cudaDeviceGetStreamPriorityRange         0.90%     191.205ms         0.90%     191.205ms     191.205ms       0.000us         0.00%       0.000us       0.000us           0 b           0 b           0 b           0 b             1  
+                                              aten::add         0.75%     158.142ms         1.24%     262.459ms      10.877us       2.777ms         0.65%       3.095ms       0.128us     112.88 Mb     112.87 Mb     483.24 Mb     483.24 Mb         24129  
+                                              aten::div         0.72%     153.197ms         1.56%     329.971ms      46.705us      15.138ms         3.57%      15.817ms       2.239us           0 b           0 b       1.78 Gb       1.78 Gb          7065  
+                                             aten::add_         0.71%     149.903ms         1.18%     249.016ms      14.143us       9.160ms         2.16%       9.928ms       0.564us      19.52 Kb     -11.57 Kb           0 b           0 b         17607  
+                                           aten::narrow         0.70%     148.632ms         1.55%     327.862ms       4.460us       0.000us         0.00%       0.000us       0.000us           0 b           0 b           0 b           0 b         73519  
+                                              aten::abs         0.59%     125.483ms         1.15%     242.709ms      59.517us       0.000us         0.00%       0.000us       0.000us     215.06 Mb     107.61 Mb           0 b           0 b          4078  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 21.171s
+Self CUDA time total: 424.229ms
+
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg       CPU Mem  Self CPU Mem      CUDA Mem  Self CUDA Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+void at::native::(anonymous namespace)::embedding_ba...         0.00%       0.000us         0.00%       0.000us       0.000us     119.159ms        28.09%     119.159ms      48.145us           0 b           0 b           0 b           0 b          2475  
+                         aten::embedding_dense_backward         0.20%      43.079ms         1.28%     270.254ms     109.194us     119.117ms        28.08%     127.249ms      51.414us           0 b           0 b      18.66 Mb     -13.42 Mb          2475  
+                                            aten::copy_         1.26%     267.277ms         2.05%     433.347ms       9.227us      72.748ms        17.15%      73.768ms       1.571us    -105.41 Kb    -105.41 Kb           0 b           0 b         46963  
+                         Memcpy HtoD (Pinned -> Device)         0.00%       0.000us         0.00%       0.000us       0.000us      64.805ms        15.28%      64.805ms      17.076us           0 b           0 b           0 b           0 b          3795  
+                                               aten::mm         2.49%     526.267ms         3.00%     635.060ms      15.219us      45.222ms        10.66%      46.486ms       1.114us      96.78 Mb      96.78 Mb     891.13 Mb     891.13 Mb         41727  
+                                aten::native_batch_norm         0.34%      72.261ms         1.28%     270.134ms     156.599us      24.164ms         5.70%      25.042ms      14.517us           0 b           0 b     470.05 Mb           0 b          1725  
+                                     aten::index_select         0.44%      92.711ms         1.98%     419.647ms      86.883us      18.909ms         4.46%      19.276ms       3.991us           0 b           0 b       1.81 Gb           0 b          4830  
+                       aten::native_batch_norm_backward         0.21%      45.133ms         0.67%     141.880ms     103.185us      18.719ms         4.41%      18.920ms      13.760us           0 b           0 b     351.49 Mb      -2.40 Mb          1375  
+void at::native::(anonymous namespace)::indexSelectL...         0.00%       0.000us         0.00%       0.000us       0.000us      16.041ms         3.78%      16.041ms       3.875us           0 b           0 b           0 b           0 b          4140  
+                                              aten::div         0.72%     153.197ms         1.56%     329.971ms      46.705us      15.138ms         3.57%      15.817ms       2.239us           0 b           0 b       1.78 Gb       1.78 Gb          7065  
+void at::native::elementwise_kernel<128, 2, at::nati...         0.00%       0.000us         0.00%       0.000us       0.000us      15.123ms         3.56%      15.123ms       2.145us           0 b           0 b           0 b           0 b          7050  
+void at::native::batch_norm_collect_statistics_chann...         0.00%       0.000us         0.00%       0.000us       0.000us      14.916ms         3.52%      14.916ms      10.848us           0 b           0 b           0 b           0 b          1375  
+                         volta_sgemm_32x32_sliced1x4_nn         0.00%       0.000us         0.00%       0.000us       0.000us      14.911ms         3.51%      14.911ms       9.010us           0 b           0 b           0 b           0 b          1655  
+                                              aten::sum         0.50%     106.261ms         1.20%     253.387ms      59.564us      14.071ms         3.32%      14.219ms       3.343us       5.38 Mb       5.38 Mb       3.61 Mb       3.61 Mb          4254  
+void at::native::reduce_kernel<512, 1, at::native::R...         0.00%       0.000us         0.00%       0.000us       0.000us      14.071ms         3.32%      14.071ms       6.353us           0 b           0 b           0 b           0 b          2215  
+void at::native::batch_norm_backward_reduce_channels...         0.00%       0.000us         0.00%       0.000us       0.000us      12.732ms         3.00%      12.732ms       9.260us           0 b           0 b           0 b           0 b          1375  
+                         volta_sgemm_32x32_sliced1x4_tn         0.00%       0.000us         0.00%       0.000us       0.000us      12.459ms         2.94%      12.459ms       9.475us           0 b           0 b           0 b           0 b          1315  
+                         volta_sgemm_32x32_sliced1x4_nt         0.00%       0.000us         0.00%       0.000us       0.000us      11.990ms         2.83%      11.990ms       8.720us           0 b           0 b           0 b           0 b          1375  
+void at::native::vectorized_elementwise_kernel<4, at...         0.00%       0.000us         0.00%       0.000us       0.000us       9.952ms         2.35%       9.952ms       1.278us           0 b           0 b           0 b           0 b          7790  
+                                             aten::add_         0.71%     149.903ms         1.18%     249.016ms      14.143us       9.160ms         2.16%       9.928ms       0.564us      19.52 Kb     -11.57 Kb           0 b           0 b         17607  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 21.171s
+Self CUDA time total: 424.229ms
+
+K = 20
+epoch = 5

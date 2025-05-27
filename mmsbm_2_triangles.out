@@ -1,0 +1,17 @@
+n_tests = 500
+> With mu = 1 and max_itr = 50, the success rate is 0.256
+> With mu = 1 and max_itr = 100, the success rate is 0.342
+> With mu = 1 and max_itr = 200, the success rate is 0.51
+> With mu = 1 and max_itr = 500, the success rate is 0.534
+> With mu = 10 and max_itr = 50, the success rate is 0.292
+> With mu = 10 and max_itr = 100, the success rate is 0.44
+> With mu = 10 and max_itr = 200, the success rate is 0.566
+> With mu = 10 and max_itr = 500, the success rate is 0.662
+> With mu = 100 and max_itr = 50, the success rate is 0.452
+> With mu = 100 and max_itr = 100, the success rate is 0.55
+> With mu = 100 and max_itr = 200, the success rate is 0.6
+> With mu = 100 and max_itr = 500, the success rate is 0.628
+> With mu = 1000 and max_itr = 50, the success rate is 0.522
+> With mu = 1000 and max_itr = 100, the success rate is 0.552
+> With mu = 1000 and max_itr = 200, the success rate is 0.642
+> With mu = 1000 and max_itr = 500, the success rate is 0.674

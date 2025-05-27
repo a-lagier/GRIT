@@ -10,7 +10,7 @@ from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_scatter import scatter_add
 from functools import partial
 from .rrwp import add_full_rrwp
-from .SGD_MMSBM import add_mmsbm_enc
+from .mmsbm import add_mmsbm_enc
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):

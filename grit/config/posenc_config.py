@@ -16,7 +16,7 @@ def set_cfg_posenc(cfg):
     # cfg.posenc_HKdiagSE = CN()
     # cfg.posenc_ElstaticSE = CN()
     # cfg.posenc_EquivStableLapPE = CN()
-    # cfg.posenc_RRWP = CN()
+    cfg.posenc_RRWP = CN()
     # cfg.posenc_MMSBM = CN()
 
     # # Common arguments to all PE types.
@@ -92,10 +92,10 @@ def set_cfg_posenc(cfg):
     # cfg.posenc_ElstaticSE.kernel.times_func = 'range(10)'
 
     # # ----------------- Note: RRWP --------------
-    # # cfg.posenc_RRWP.enable = False
+    # cfg.posenc_RRWP.enable = False
     # # cfg.posenc_RRWP.ksteps = 21
     # # cfg.posenc_RRWP.add_identity = True
-    # cfg.posenc_RRWP.spd = False
+    cfg.posenc_RRWP.spd = False
 
 
 

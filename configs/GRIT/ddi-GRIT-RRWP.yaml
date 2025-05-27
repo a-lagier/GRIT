@@ -14,24 +14,23 @@ dataset:
   format: OGB
   name: ogbl-ddi
   task: link_pred
-  task_type: subtoken_prediction
+  task_type: link_pred
   transductive: False
   node_encoder: False
-  node_encoder_name: LinearNode
-  node_encoder_bn: False
   edge_encoder: False
-  edge_encoder_name: LinearEdge
-  edge_encoder_bn: False
   pe_transform_on_the_fly: False
+  split_idxs: [1300000, 1800000, 2135821]
+  split_mode: random
+  split: [0.5, 0.3, 0.2]
 posenc_RRWP:
   enable: True
-  ksteps: 18
+  ksteps: 2
   add_identity: True
   add_node_attr: False
   add_inverse: False
 train:
   mode: custom
-  batch_size: 16
+  batch_size: 10
   eval_period: 1
   ckpt_period: 100
 model:
@@ -43,7 +42,7 @@ gt:  # Hyperparameters optimized for ~100k budget.
   layer_type: GritTransformer
   layers: 3
   n_heads: 4
-  dim_hidden: 52  # `gt.dim_hidden` must match `gnn.dim_inner`
+  dim_hidden: 10  # `gt.dim_hidden` must match `gnn.dim_inner`
   dropout: 0.0
   attn_dropout: 0.5
   layer_norm: False
@@ -59,7 +58,7 @@ gnn:
   head: default
   layers_pre_mp: 1
   layers_post_mp: 2
-  dim_inner: 52  # `gt.dim_hidden` must match `gnn.dim_inner`
+  dim_inner: 10  # `gt.dim_hidden` must match `gnn.dim_inner`
   batchnorm: False
   act: relu
   dropout: 0.0
