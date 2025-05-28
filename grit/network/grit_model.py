@@ -67,7 +67,7 @@ class GritTransformer(torch.nn.Module):
         self.ablation = True
         self.ablation = False
 
-        if hasattr(cfg, 'posenc_RRWP'):
+        if hasattr(cfg, 'posenc_RRWP') and cfg.posenc_RRWP.enable:
             self.rrwp_abs_encoder = register.node_encoder_dict["rrwp_linear"]\
                 (cfg.posenc_RRWP.ksteps, cfg.gnn.dim_inner)
             rel_pe_dim = cfg.posenc_RRWP.ksteps
@@ -77,7 +77,7 @@ class GritTransformer(torch.nn.Module):
                  add_node_attr_as_self_loop=False,
                  fill_value=0.
                  )
-        if hasattr(cfg, 'posenc_MMSBM'):
+        if hasattr(cfg, 'posenc_MMSBM') and cfg.posenc_MMSBM.enable:
             self.mmsbm_abs_encoder = register.node_encoder_dict["mmsbm_linear"] \
                 (cfg.posenc_MMSBM.k, cfg.gnn.dim_inner)
             rel_pe_dim = cfg.posenc_MMSBM.k
@@ -87,6 +87,17 @@ class GritTransformer(torch.nn.Module):
                 add_node_attr_as_self_loop=False,
                 fill_value=0.
                 )
+
+        if hasattr(cfg, 'posenc_RRWP_MMSBM') and cfg.posenc_RRWP_MMSBM.enable:
+            self.rrwp_abs_encoder = register.node_encoder_dict["rrwp_mmsbm_linear"]\
+                (cfg.posenc_RRWP_MMSBM.ksteps, cfg.gnn.dim_inner)
+            rel_pe_dim = cfg.posenc_RRWP_MMSBM.ksteps
+            self.rrwp_rel_encoder = register.edge_encoder_dict["rrwp_mmsbm_linear"] \
+                (rel_pe_dim, cfg.gnn.dim_edge if hasattr(cfg.gnn, 'dim_edge') else cfg.gnn.dim_inner,
+                 pad_to_full_graph=cfg.gt.attn.full_attn,
+                 add_node_attr_as_self_loop=False,
+                 fill_value=0.
+                 )
 
 
         if cfg.gnn.layers_pre_mp > 0:

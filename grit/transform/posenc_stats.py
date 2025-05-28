@@ -11,6 +11,7 @@ from torch_scatter import scatter_add
 from functools import partial
 from .rrwp import add_full_rrwp
 from .mmsbm import add_mmsbm_enc
+from .rrwp_mmsbm import add_full_rrwp_mmsbm
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
@@ -35,7 +36,7 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     # Verify PE types.
     for t in pe_types:
         if t not in ['LapPE', 'EquivStableLapPE', 'SignNet',
-                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP', 'MMSBM']:
+                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP', 'MMSBM', 'RRWP_MMSBM']:
             raise ValueError(f"Unexpected PE stats selection {t} in {pe_types}")
 
     # Basic preprocessing of the input graph.
@@ -144,6 +145,15 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
         param = cfg.posenc_MMSBM
         data = add_mmsbm_enc(data, n_communities=param.k)
         
+    if 'RRWP_MMSBM' in pe_types:
+        param = cfg.posenc_RRWP_MMSBM
+        data = add_full_rrwp_mmsbm(data, 
+                            walk_length=param.ksteps,
+                            n_communities=param.n_communities, 
+                            attr_name_abs="rrwp", 
+                            attr_name_rel="rrwp",
+                            add_identity=param.add_identity,
+                            spd=param.spd)
 
     if 'RRWP' in pe_types:
         param = cfg.posenc_RRWP

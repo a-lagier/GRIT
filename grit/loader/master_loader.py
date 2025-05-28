@@ -10,7 +10,7 @@ import torch_geometric.transforms as T
 from numpy.random import default_rng
 from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.datasets import (GNNBenchmarkDataset, Planetoid, TUDataset,
-                                      WikipediaNetwork, ZINC, Flickr, LINKXDataset, MovieLens100K,
+                                      WikipediaNetwork, ZINC, Flickr, LINKXDataset,
                                       StochasticBlockModelDataset)
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import load_pyg, load_ogb, set_dataset_attr
@@ -145,8 +145,8 @@ def load_dataset_master(format, name, dataset_dir):
         elif pyg_dataset_id == 'Penn94':
             dataset = preformat_Penn94(dataset_dir, name)
         
-        elif pyg_dataset_id == 'MovieLens100k':
-            dataset = preformat_MovieLens100k(dataset_dir)
+        # elif pyg_dataset_id == 'MovieLens100k':
+        #     dataset = preformat_MovieLens100k(dataset_dir)
         
         elif pyg_dataset_id == 'StochasticBlockModel':
             dataset = preformat_StochasticBlockModel(dataset_dir)
@@ -340,8 +340,8 @@ def add_pe_transform_to_dataset(format, name, dataset_dir, pe_transform=None):
         elif pyg_dataset_id == 'Penn94':
             dataset = preformat_Penn94(dataset_dir, name)
         
-        elif pyg_dataset_id == 'MovieLens100k':
-            dataset = preformat_MovieLens100k(dataset_dir)
+        # elif pyg_dataset_id == 'MovieLens100k':
+        #     dataset = preformat_MovieLens100k(dataset_dir)
         
         elif pyg_dataset_id == 'StochasticBlockModel':
             dataset = preformat_StochasticBlockModel(dataset_dir)
@@ -810,19 +810,19 @@ def preformat_Penn94(dataset_dir, name):
     )
     return dataset
 
-def preformat_MovieLens100k(dataset_dir):
-    """Load and preformat MovieLens100k dataset.
+# def preformat_MovieLens100k(dataset_dir):
+#     """Load and preformat MovieLens100k dataset.
 
-    Args:
-        dataset_dir: path where to store the cached dataset
-    Returns:
-        PyG dataset object
-    """
-    dataset = join_dataset_splits(
-        [MovieLens100K(root=dataset_dir, split=split)
-         for split in ['train', 'val', 'test']]
-    )
-    return dataset
+#     Args:
+#         dataset_dir: path where to store the cached dataset
+#     Returns:
+#         PyG dataset object
+#     """
+#     dataset = join_dataset_splits(
+#         [MovieLens100K(root=dataset_dir, split=split)
+#          for split in ['train', 'val', 'test']]
+#     )
+#     return dataset
 
 def preformat_StochasticBlockModel(dataset_dir, block_sizes=[20,20], edge_probs=[[0.49,1e-2],[1e-2,0.49]], no_split=False):
     """Load and preformat StochasticBlockModel dataset.

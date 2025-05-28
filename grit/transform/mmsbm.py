@@ -29,11 +29,11 @@ def add_node_attr(data, value,
 
     return data
 
-# move these parameters into the config file
+# TODO move these parameters into the config file
 class flags:
     def __init__(self):
         # Hyper-parameter for the MMSBM model
-        self.max_itr = 100
+        self.max_itr = 200
         self.delta = 0.0001
         self.batch_size = 500
         self.sampled_non_edges_ratio = 0.01
