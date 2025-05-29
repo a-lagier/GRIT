@@ -11,8 +11,10 @@
 import torch
 import numpy as np
 from grit.transform.utils import reparameterized_to_beta, reparameterized_to_pi, metric_perp_avg, \
-    bernuli_distrbution, step_size_function, accuracy_avg, initialize_theta_phi_with_better_initialization, sample_non_edges, get_node_neighbor_dict
+    bernuli_distrbution, step_size_function, accuracy_avg, initialize_theta_phi_with_better_initialization, sample_non_edges, \
+    get_node_neighbor_dict_dense, get_node_neighbor_dict_sparse, edges_non_edges_index
 from scipy.sparse import coo_matrix
+import networkx as nx
 from time import time
 from math import ceil
 
@@ -41,9 +43,7 @@ class flags:
 
 
 class MMSBM_SGMCMC:
-    def __init__(self, flags, n, k, edges, step_size_scalar,
-                 node_neighbors_dict,
-                 mu=1, max_iter=100):
+    def __init__(self, flags, n, k, edges, step_size_scalar, mu=1, max_iter=100):
 
         """ follows the notations in the original paper
         :param flags: hyper-parameters for GCN and MMSBM
@@ -59,7 +59,7 @@ class MMSBM_SGMCMC:
         :param true_labels: ground truth labels                                                                                                     (unused thus removed)
         :param better_initialization_flag: a flag indicate if we train the MMSBM from scratch or we use the better initialization output from gcn   (unused thus removed)
         :param step_size_scalar: step size for the MMSBM
-        :param node_neighbors_dict: a dict for query the neighborhood node indices
+        :param node_neighbors_dict: a dict for query the neighborhood node indices                                                                  (computed inside __init__)
         :param val_set_index: indices for the validation set                                                                                        (unused thus removed)
         """
         self.gamma_scale = flags.gamma_scale
@@ -68,11 +68,22 @@ class MMSBM_SGMCMC:
         self.n = n  # number of nodes
         self.k = k
 
+        # self.dense = self.n <= 100
+        self.dense = False
+        if self.dense:
+            self.adj = np.zeros((n,n), dtype=int)
+            self.adj[edges[0,:], edges[1,:]] = 1
+            self.adj = nx.adjacency_matrix(nx.from_numpy_array(self.adj))
+        else:
+            self.adj = None
+        self.edges = edges
+
         self.alpha = 1.0 / k
         self.mu = mu
         self.tao = 1024
         self.n_list_set = np.array([i for i in range(self.n)])
 
+        # Flags hyperparameters
         self.max_iter = flags.max_itr
         self.mini_batch_nodes = min(flags.batch_size, max(min(20, n), n // 10))
 
@@ -80,41 +91,31 @@ class MMSBM_SGMCMC:
         self.T = 1  # sample number of pi and beta for each edge during the evaluation process
         self.test_edges_n = 500  # test set edges for the perplexity test
         self.delta = flags.delta
-        self.node_neighbors_dict = node_neighbors_dict
+        self.node_neighbors_dict = (get_node_neighbor_dict_dense(self.adj, self.n) if self.dense else get_node_neighbor_dict_sparse(edges, self.n))
         self.avg_predict_label = 0
 
         # variable initialization (random initialization)
-        better_initialization_flag = False
-        if not better_initialization_flag:
-            self.phi = np.random.gamma(self.alpha, 1, size=(self.n, self.k))
-            self.theta = np.random.gamma(self.mu, 1, size=(self.k, 2))
-            self.beta, self.theta_constant = reparameterized_to_beta(self.theta)
-            self.pi, self.phi_constant = reparameterized_to_pi(self.phi, self.n)
-        else:
-            self.sigma = 1
-
-            self.beta = np.ones(k) * 0.5
-            self.theta_constant = k/2
-            self.pi = (np.ones((n,k)) + np.random.normal(scale=self.sigma, size=(n,k))) / k
-            self.phi_constant = (np.sum(self.pi, axis = 1)).reshape(n, 1)
-            self.theta, self.phi = initialize_theta_phi_with_better_initialization(self.beta, self.pi, self.theta_constant, self.phi_constant, self.k)
-
+        self.phi = np.random.gamma(self.alpha, 1, size=(self.n, self.k))
+        self.theta = np.random.gamma(self.mu, 1, size=(self.k, 2))
+        self.beta, self.theta_constant = reparameterized_to_beta(self.theta)
+        self.pi, self.phi_constant = reparameterized_to_pi(self.phi, self.n)
         self.initial_prediction_labels = self.pi.argmax(axis=1)
 
         self.MCMC_MMSBM_prediction_labels = self.initial_prediction_labels
         self.B = np.ones((self.k, self.k)) * flags.delta
 
         # Info of the given topology, split into the edges and non-edges
-        self.deg = np.zeros(n)
-        self.edges = edges
-        
-        self.edges_n, self.nonedges_n = self.edges.shape[1], self.n * self.n - self.edges.shape[1]
-        self.hash_edges = {}
-        # st = time()
-        for i in range(self.edges_n): #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! not parallel !!!!!!!!!!!!!!!!!!!!!!
-            self.deg[self.edges[0,i]] += 1
-            self.hash_edges[hash(tuple(self.edges[:,i]))] = True
-        # print(f"Computing edge hash took {time() - st} sec")
+        if self.dense:
+            self.edges, self.nonedges = edges_non_edges_index(self.adj, self.n, self.node_neighbors_dict)
+            self.deg = self.adj.sum(axis=1)
+            self.edges_n, self.nonedges_n = int(self.edges.shape[0]), int(self.nonedges.shape[0])
+        else:
+            self.deg = np.zeros(n, dtype=int)
+            self.edges_n, self.nonedges_n = self.edges.shape[1], self.n * self.n - self.edges.shape[1]
+            self.edges_dict = {}
+            for i in range(self.edges_n): #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! not parallel !!!!!!!!!!!!!!!!!!!!!!
+                self.deg[self.edges[0,i]] += 1
+                self.edges_dict[tuple(self.edges[:,i])] = True
 
         self.sampled_non_edges_ratio = self.flags.sampled_non_edges_ratio
         self.sampled_non_edges_n = int(self.sampled_non_edges_ratio * self.nonedges_n)
@@ -238,14 +239,16 @@ class MMSBM_SGMCMC:
         grad_theta = np.zeros((self.k, 2))
 
         # Method from Zhang et al. uses N^2 memory
-        # sample_non_edges_index = np.random.randint(self.nonedges_n, size=self.sampled_non_edges_n)
-        # non_edges_index_a = self.nonedges[0][sample_non_edges_index]
-        # non_edges_index_b = self.nonedges[1][sample_non_edges_index]
+        if self.dense:
+            sample_non_edges_index = np.random.randint(self.nonedges_n, size=self.sampled_non_edges_n)
+            non_edges_index_a = self.nonedges[0][sample_non_edges_index]
+            non_edges_index_b = self.nonedges[1][sample_non_edges_index]
 
         # Rejection sampling method
-        sampled_non_edges, N_non_edges = sample_non_edges(self.hash_edges, self.n, self.edges_n, self.sampled_non_edges_ratio)
-        non_edges_index_a = sampled_non_edges[0]
-        non_edges_index_b = sampled_non_edges[1]
+        else:
+            sampled_non_edges, N_non_edges = sample_non_edges(self.edges_dict, self.n, self.edges_n, self.sampled_non_edges_ratio)
+            non_edges_index_a = sampled_non_edges[0]
+            non_edges_index_b = sampled_non_edges[1]
 
         pi_a_non_links = self.pi[non_edges_index_a]
         pi_b_non_links = self.pi[non_edges_index_b]
@@ -258,10 +261,7 @@ class MMSBM_SGMCMC:
         z_ab_links = self.Z_constant_mini_batch(pi_a_links, pi_b_links, links_flag=True)
 
         # Method from Zhang et al.
-        # correction = float(self.nonedges_n) / len(non_edges_index_a)
-
-        # Rejection sampling method
-        correction = float(self.nonedges_n) / (N_non_edges + 1)
+        correction = float(self.nonedges_n) / len(non_edges_index_a)
 
 
         for k in range(self.k):
@@ -348,21 +348,6 @@ class MMSBM_SGMCMC:
             for k in range(self.k):
                 self.B[k][k] = self.beta[k]
 
-@torch.no_grad()
-def spe_transform(X, S=5):
-    n, k = X.shape
-
-    new_k = (1 + 2*S)*k
-    new_X = torch.zeros((n,new_k))
-    for i in range(n):
-        for j in range(k):
-            pe = X[i,j]
-            new_X[i,j,0] = X[i,j]
-            for p in range(1, S):
-                new_X[i,j,2*p-1] = torch.cos(torch.pi*(2**p)*pe)
-                new_X[i,j,2*p] = torch.sin(torch.pi*(2**p)*pe)
-    return new_X
-
 
 @torch.no_grad()
 def add_mmsbm_enc(data, n_communities=8, attr_name_abs='mmsbm', attr_name_rel='mmsbm', spe=False):
@@ -374,20 +359,6 @@ def add_mmsbm_enc(data, n_communities=8, attr_name_abs='mmsbm', attr_name_rel='m
     model.model_training()
     pi, beta = torch.from_numpy(model.pi), torch.from_numpy(model.beta)
 
-    # disabled for now
-    # computation of abs_pe and rel_pe
-    # if spe:
-    #     S = 5
-    #     abs_pe = spe_transform(pi, S=S)
-    #     beta = spe_transform(beta.view(1, -1))
-
-    #     rel_pe_idx = edge_index
-    #     rel_pe_val = torch.zeros((edge_index.shape[1], abs_pe.shape[1]))
-    #     for i in range(edge_index.shape[1]):
-    #         index_a, index_b = edge_index[:,i]
-    #         rel_pe_val[i] =  torch.outer(abs_pe[index_b],abs_pe[index_a]) @ beta
-
-    # else:
     abs_pe = pi
 
     rel_pe_idx = edge_index

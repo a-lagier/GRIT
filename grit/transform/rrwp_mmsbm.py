@@ -8,7 +8,6 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.transforms import BaseTransform
 from torch_scatter import scatter, scatter_add, scatter_max
 from grit.transform.mmsbm import MMSBM_SGMCMC, flags
-from grit.transform.utils import get_node_neighbor_dict
 
 from torch_geometric.graphgym.config import cfg
 
@@ -41,7 +40,7 @@ def get_mmsbm_enc(data, n_communities=8):
     num_nodes = data.num_nodes
     edge_index, edge_weight = data.edge_index, data.edge_weight
 
-    model = MMSBM_SGMCMC(flags=FLAGS, n=num_nodes, k=n_communities, edges=edge_index, step_size_scalar=1, node_neighbors_dict=get_node_neighbor_dict(edge_index, num_nodes))
+    model = MMSBM_SGMCMC(flags=FLAGS, n=num_nodes, k=n_communities, edges=edge_index, step_size_scalar=1)
     model.model_training()
     pi, beta = torch.from_numpy(model.pi), torch.from_numpy(model.beta)
 
