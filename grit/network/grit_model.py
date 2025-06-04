@@ -98,6 +98,16 @@ class GritTransformer(torch.nn.Module):
                  add_node_attr_as_self_loop=False,
                  fill_value=0.
                  )
+        if hasattr(cfg, 'posenc_ROGPE') and cfg.posenc_ROGPE.enable:
+            rotation_dim = cfg.max_degree * cfg.posenc_ROGPE.k_hop
+            self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear"]\
+                (rotation_dim=rotation_dim, n_hidden_layers=4)
+            self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear"] \
+                (dim_in, cfg.gnn.dim_edge if hasattr(cfg.gnn, 'dim_edge') else cfg.gnn.dim_inner,
+                 pad_to_full_graph=cfg.gt.attn.full_attn,
+                 add_node_attr_as_self_loop=False,
+                 fill_value=0.
+                 )
 
 
         if cfg.gnn.layers_pre_mp > 0:

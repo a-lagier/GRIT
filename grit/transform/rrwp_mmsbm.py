@@ -67,7 +67,7 @@ def add_full_rrwp_mmsbm(data,
     num_nodes = data.num_nodes
     edge_index, edge_weight = data.edge_index, data.edge_weight
 
-    if not edge_weight:
+    if edge_weight is None:
         edge_weight = torch.zeros(edge_index.size(1), dtype=torch.float)
 
     pi, beta = get_mmsbm_enc(data, n_communities=n_communities)

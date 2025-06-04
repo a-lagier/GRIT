@@ -35,7 +35,7 @@ def add_node_attr(data, value,
 class flags:
     def __init__(self):
         # Hyper-parameter for the MMSBM model
-        self.max_itr = 200
+        self.max_itr = 5000
         self.delta = 0.0001
         self.batch_size = 500
         self.sampled_non_edges_ratio = 0.01

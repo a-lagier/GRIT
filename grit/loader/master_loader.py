@@ -12,6 +12,7 @@ from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.datasets import (GNNBenchmarkDataset, Planetoid, TUDataset,
                                       WikipediaNetwork, ZINC, Flickr, LINKXDataset,
                                       StochasticBlockModelDataset)
+from torch_geometric.utils import degree
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import load_pyg, load_ogb, set_dataset_attr
 from torch_geometric.graphgym.register import register_loader
@@ -195,38 +196,6 @@ def load_dataset_master(format, name, dataset_dir):
     log_loaded_dataset(dataset, format, name)
 
 
-    # add possibility to split graph into smaller graphs
-    # print(vars(dataset))
-    #
-    #
-    #
-
-    # if not dataset_dir_completed:
-    #     dataset_dir = osp.join(dataset_dir, name.replace('-', '_'))
-
-    # if the graph have a large number of nodes, we partitioned them
-    # if np.mean([graph.num_nodes for graph in dataset]) > 1e4:
-    #     num_partitions = 100
-
-    #     if not osp.exists(osp.join(dataset_dir, 'part_0')):
-    #         dataset = partition_and_convert_to_dataset(dataset[0], num_parts=num_partitions, partition_dir=dataset_dir)
-    #     else:
-    #         dataset = example_load_existing_partitions(partition_dir=dataset_dir)
-        # for data in dataset:
-            # num_partitions = 200
-# 
-            # p = Partitioner(dataset, num_parts=num_partitions, root=dataset_dir)
-            # 
-            # if the partitions have not been made yet, generate them 
-            # if not osp.exists(osp.join(dataset_dir, 'part_0')):
-                # p.generate_partition()
-            # 
-            # dataset = p.load_partition_info()
-    # 
-    #
-    #
-    # END
-
     # Precompute necessary statistics for positional encodings.
     pe_enabled_list = []
     for key, pecfg in cfg.items():
@@ -240,11 +209,17 @@ def load_dataset_master(format, name, dataset_dir):
                 logging.info(f"Parsed {pe_name} PE kernel times / steps: "
                              f"{pecfg.kernel.times}")
 
+    # compute max degree of all graph in datasets
+    max_degree = 0
+    for d in dataset:
+        max_degree = max(max_degree, int(degree(d.edge_index[0]).max()))
+    cfg.max_degree = max_degree + 1
 
     if pe_enabled_list:
         start = time.perf_counter()
         logging.info(f"Precomputing Positional Encoding statistics: "
                      f"{pe_enabled_list} for all graphs...")
+        # compute max degree over all graphs
         # Estimate directedness based on 10 graphs to save time.
         is_undirected = all(d.is_undirected() for d in dataset[:10])
         logging.info(f"  ...estimated to be undirected: {is_undirected}")

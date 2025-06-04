@@ -12,6 +12,7 @@ from functools import partial
 from .rrwp import add_full_rrwp
 from .mmsbm import add_mmsbm_enc
 from .rrwp_mmsbm import add_full_rrwp_mmsbm
+from .rogpe import add_rogpe
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
@@ -36,7 +37,7 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     # Verify PE types.
     for t in pe_types:
         if t not in ['LapPE', 'EquivStableLapPE', 'SignNet',
-                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP', 'MMSBM', 'RRWP_MMSBM']:
+                     'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE','RRWP', 'MMSBM', 'RRWP_MMSBM', 'ROGPE']:
             raise ValueError(f"Unexpected PE stats selection {t} in {pe_types}")
 
     # Basic preprocessing of the input graph.
@@ -165,6 +166,10 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
                             spd=param.spd, # by default False
                             )
         data = transform(data)
+    
+    if 'ROGPE' in pe_types:
+        param = cfg.posenc_ROGPE
+        data = add_rogpe(data, d_max=cfg.max_degree, k_hop=param.k_hop)
     
 
     return data

@@ -136,17 +136,17 @@ if __name__ == '__main__':
     # Repeat for multiple experiment runs
 
     # torch.cuda.memory._record_memory_history(max_entries=100000)
-
-    with torch.profiler.profile(
-       activities=[
-           torch.profiler.ProfilerActivity.CPU,
-        #    torch.profiler.ProfilerActivity.CUDA,
-       ],
-       schedule=torch.profiler.schedule(wait=0, warmup=0, active=6, repeat=1),
-       record_shapes=True,
-       profile_memory=True,
-       with_stack=True,
-   ) as prof:
+    if True:
+#     with torch.profiler.profile(
+#        activities=[
+#            torch.profiler.ProfilerActivity.CPU,
+#         #    torch.profiler.ProfilerActivity.CUDA,
+#        ],
+#        schedule=torch.profiler.schedule(wait=0, warmup=0, active=6, repeat=1),
+#        record_shapes=True,
+#        profile_memory=True,
+#        with_stack=True,
+#    ) as prof:
 
         for run_id, seed, split_index in zip(*run_loop_settings()):
             # Set configurations for each run
@@ -204,8 +204,8 @@ if __name__ == '__main__':
                 train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
                                         scheduler)
             print(f"End run {seed}")
-    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-    print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
+    # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    # print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
     # Aggregate results from different seeds
     try:
         agg_runs(cfg.out_dir, cfg.metric_best)
@@ -216,5 +216,5 @@ if __name__ == '__main__':
         os.rename(args.cfg_file, f'{args.cfg_file}_done')
     logging.info(f"[*] All done: {datetime.datetime.now()}")
 
-    torch.cuda.memory._dump_snapshot("profile.pkl")
-    torch.cuda.memory._record_memory_history(enabled=None)
+    # torch.cuda.memory._dump_snapshot("profile.pkl")
+    # torch.cuda.memory._record_memory_history(enabled=None)
