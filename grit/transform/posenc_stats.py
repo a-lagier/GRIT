@@ -12,7 +12,7 @@ from functools import partial
 from .rrwp import add_full_rrwp
 from .mmsbm import add_mmsbm_enc
 from .rrwp_mmsbm import add_full_rrwp_mmsbm
-from .rogpe import add_rogpe
+from .rogpe import add_rogpe, add_deg, compute_structure_coefficients, compute_distance_coefficients, compute_random_walk_coefficients
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
@@ -169,7 +169,30 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     
     if 'ROGPE' in pe_types:
         param = cfg.posenc_ROGPE
-        data = add_rogpe(data, d_max=cfg.max_degree, k_hop=param.k_hop)
+        if hasattr(param, 'eigen') and param.eigen.enable:
+            # Eigen-decomposition with numpy for RoGPE.
+            L = to_scipy_sparse_matrix(
+                *get_laplacian(undir_edge_index, normalization="sym", num_nodes=N)
+            )
+            evals_sn, evects_sn = np.linalg.eigh(L.toarray())
+            data.eigvals, data.eigvecs = get_lap_decomp_stats(
+                evals=evals_sn, evects=evects_sn,
+                max_freqs=param.eigen.max_freqs)
+        
+            data = add_deg(data)
+    
+        if hasattr(param, 'coeffs') and param.coeffs.enable:
+            coeff_func = None
+            coeff_func_name = param.coeffs.func_name
+            if coeff_func_name == "structure":
+                coeff_func = compute_structure_coefficients
+            elif coeff_func_name == "distance":
+                coeff_func = compute_distance_coefficients
+            elif coeff_func_name == "random_walk":
+                coeff_func = compute_random_walk_coefficients
+            else:
+                raise ValueError(f"Unknown coeff function name {coeff_func_name}")
+            data = add_rogpe(data, coeff_func, cfg)
     
 
     return data

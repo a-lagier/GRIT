@@ -99,15 +99,25 @@ class GritTransformer(torch.nn.Module):
                  fill_value=0.
                  )
         if hasattr(cfg, 'posenc_ROGPE') and cfg.posenc_ROGPE.enable:
-            rotation_dim = cfg.max_degree * cfg.posenc_ROGPE.k_hop
-            self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear"]\
-                (rotation_dim=rotation_dim, n_hidden_layers=4)
-            self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear"] \
-                (dim_in, cfg.gnn.dim_edge if hasattr(cfg.gnn, 'dim_edge') else cfg.gnn.dim_inner,
-                 pad_to_full_graph=cfg.gt.attn.full_attn,
-                 add_node_attr_as_self_loop=False,
-                 fill_value=0.
-                 )
+            param = cfg.posenc_ROGPE
+
+            if hasattr(param, 'coeffs') and param.coeffs.enable:
+                num_angles = param.get("num_angles", 1)
+                rotation_dim = param.coeffs.n_coeffs
+                aggregate_range = param.aggregate_range
+
+                self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_coeffs"]\
+                    (in_dim=rotation_dim, n_hidden_layers=param.hidden_layers, out_dim=num_angles, aggregate_range=aggregate_range)
+                self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_coeffs"]\
+                    (in_dim=2*rotation_dim, n_hidden_layers=param.hidden_layers)
+            
+            if hasattr(param, 'eigen') and param.eigen.enable:
+                in_dim = param.eigen.max_freqs
+                out_dim = param.eigen.out_dim
+                self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_eigen"]\
+                    (in_dim=in_dim, out_dim=out_dim, n_hidden_layers=param.hidden_layers)
+                self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_eigen"]\
+                    ()          
 
 
         if cfg.gnn.layers_pre_mp > 0:
@@ -138,6 +148,7 @@ class GritTransformer(torch.nn.Module):
                 norm_e=cfg.gt.attn.norm_e,
                 O_e=cfg.gt.attn.O_e,
                 cfg=cfg.gt,
+                num_angles=cfg.get('posenc_ROGPE', dict()).get('num_angles', 1)
             ))
         # layers = []
 

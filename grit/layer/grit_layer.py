@@ -40,9 +40,11 @@ def pyg_softmax(src, index, num_nodes=None):
 
 
 @register_layer("DotProductTransformer")
-class MultiHeadAttentionLayer(nn.Module):
+class MultiHeadDotProductAttentionLayer(nn.Module):
     """
-        Modified Attention Computation for GRIT
+        Dot Product Attention Computation for GRIT
+        
+        Only to be used with RoGPE
     """
 
     def __init__(self, in_dim, out_dim, num_heads, use_bias=True,
@@ -51,6 +53,7 @@ class MultiHeadAttentionLayer(nn.Module):
                  sqrt_relu=False,
                  signed_sqrt=True,
                  cfg=CN(),
+                 num_angles=1,
                  **kwargs):
         super().__init__()
 
@@ -67,44 +70,50 @@ class MultiHeadAttentionLayer(nn.Module):
         self.E = nn.Linear(in_dim, 1 * num_heads, bias=True)
         self.Ew = nn.Linear(in_dim, out_dim * num_heads, bias=True)
         self.V = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
+
+
         nn.init.xavier_normal_(self.Q.weight)
         nn.init.xavier_normal_(self.K.weight)
         nn.init.xavier_normal_(self.E.weight)
         nn.init.xavier_normal_(self.Ew.weight)
         nn.init.xavier_normal_(self.V.weight)
-    
-        self.Aw = nn.Parameter(torch.zeros(self.out_dim, self.num_heads, 1), requires_grad=True)
-        nn.init.xavier_normal_(self.Aw)
 
         if self.edge_enhance:
             self.VeRow = nn.Parameter(torch.zeros(self.out_dim, self.num_heads, self.out_dim), requires_grad=True)
             nn.init.xavier_normal_(self.VeRow)
+
+
+        # Soft partitioning method
+        self.num_angles = num_angles
+        self.S = nn.Parameter(torch.zeros(self.num_angles, self.out_dim * self.num_heads // 2), requires_grad=True)
+        self.softmax = nn.Softmax(dim=1)
+        nn.init.xavier_normal_(self.S)
+        # add normalization term
 
     def apply_rotation(self, batch, Q, K):
         "Q,K shape is [-1, self.num_heads, self.out_dim]"
         d = self.out_dim * self.num_heads
         d_half = d // 2
 
-        # print("Rotation angles require grad :", batch.rotation_angles.requires_grad)
-        thetas = batch.rotation_angles.view(-1)
-        # print("former rotation angles shapes is :", thetas.shape)
-        thetas_power = torch.tensor([2*i for i in range(d_half)]).repeat_interleave(2, dim=0)
+        # Node attribute rotation
+        # Second method with multiple angles
+        node_thetas = batch.node_rotation_angles.view(-1, self.num_angles)
+        node_thetas = (node_thetas @ self.softmax(self.S)).repeat_interleave(2, dim=1).reshape(Q.shape)
+        
+        # First method
+        #node_thetas = batch.node_rotation_angles.view(-1)
+        #node_thetas_power = torch.tensor([ 1 for i in range(d_half)]).repeat_interleave(2, dim=0) # replace 1 by -2*i/d
+        #node_thetas = torch.pow(node_thetas[None, :], node_thetas_power[:, None])
+        #node_thetas = node_thetas.reshape(Q.shape)
 
-        thetas = torch.pow(thetas[None, :], thetas_power[:, None])
-
-        thetas = thetas.reshape(Q.shape)
-
-        cos_pos = torch.cos(thetas)
-        sin_pos = torch.sin(thetas)
+        cos_pos = torch.cos(node_thetas)
+        sin_pos = torch.sin(node_thetas)
 
         q2 = torch.stack([-Q[..., 1::2], Q[..., ::2]], dim=2)
         k2 = torch.stack([-K[..., 1::2], K[..., ::2]], dim=2)
 
         q2 = q2.reshape(Q.shape)
         k2 = k2.reshape(K.shape)
-
-        # print("Sin/Cos shape is", sin_pos.shape, cos_pos.shape)
-        # print("Q/q2 shape is ", Q.shape, q2.shape)
 
         Q = Q * cos_pos + q2 * sin_pos
         K = K * cos_pos + k2 * sin_pos
@@ -115,45 +124,33 @@ class MultiHeadAttentionLayer(nn.Module):
         src = batch.K_h[batch.edge_index[0]]                           # (num relative) x num_heads x out_dim
         dest = batch.Q_h[batch.edge_index[1]]                          # (num relative) x num_heads x out_dim
 
-        src = src.view(-1, self.num_heads, self.out_dim)
-        dest = dest.view(-1, self.num_heads, self.out_dim)
-        # print("Attention mechanism")
-        # print(src.shape)
-        # print(dest.shape)
         score = torch.sum(src * dest, dim=2)                         # dot product attention mechanism
 
-        # print("score shape is", score.shape)
+        score /= (self.out_dim)**(1/2)
+
         if batch.get("E", None) is not None:
             batch.E = batch.E.reshape(score.shape)
             score = score + batch.E
 
-        score /= (self.out_dim)**(1/2)
 
         score = score.view(-1, self.num_heads, 1)
 
         e_t = score
 
         # final attn
-        score = oe.contract("ehd, dhc->ehc", score, self.Aw, backend="torch")
         if self.clamp is not None:
             score = torch.clamp(score, min=-self.clamp, max=self.clamp)
 
-        # print("Score before edge fetch is of shape :", score.shape)
         # output edge
         if batch.get("E", None) is not None:
-            # print("Edge after Ew layer is of shape: ", batch.Ew.shape)
             batch.wE = batch.Ew * score
             batch.wE = batch.wE.view(-1, self.num_heads, self.out_dim)
 
-        # print("Softmax")
-        # print(batch.edge_index[1].shape)
-        # print(score.shape)
         score = pyg_softmax(score, batch.edge_index[1])  # (num relative) x num_heads x 1
         score = self.dropout(score)
         batch.attn = score
 
         # Aggregate with Attn-Score
-        # print("The value tensor is of shape :", batch.V_h[batch.edge_index[0]].shape)
         msg = batch.V_h[batch.edge_index[0]] * score  # (num relative) x num_heads x out_dim
         batch.wV = torch.zeros_like(batch.V_h)  # (num nodes in batch) x num_heads x out_dim
         scatter(msg, batch.edge_index[1], dim=0, out=batch.wV, reduce='add')
@@ -164,13 +161,10 @@ class MultiHeadAttentionLayer(nn.Module):
             batch.wV = batch.wV + rowV
 
     def forward(self, batch):
-        # print("Start attention process")
-        # print("in_dim, out_dim, num_heads are :", self.in_dim, self.out_dim, self.num_heads)
-        # print("input shape is", batch.x.shape)
-
         Q_h = self.Q(batch.x)
         K_h = self.K(batch.x)
         V_h = self.V(batch.x)
+
         if batch.get("edge_attr", None) is not None:
             batch.E = self.E(batch.edge_attr)
             batch.Ew = self.Ew(batch.edge_attr).view(-1, self.num_heads, self.out_dim)
@@ -181,11 +175,6 @@ class MultiHeadAttentionLayer(nn.Module):
         batch.K_h = K_h.view(-1, self.num_heads, self.out_dim)
         batch.V_h = V_h.view(-1, self.num_heads, self.out_dim)
 
-        # print("Precompute attention")
-        # print("Shape of batch.x is", batch.x.shape)
-        # print("Shape of rotation angle is", batch.rotation_angles.shape)
-        # print("Shape of q_h is", batch.Q_h.shape)
-        # print("Shape of k_h is", batch.K_h.shape)
         batch.Q_h, batch.K_h = self.apply_rotation(batch, batch.Q_h, batch.K_h)
 
         batch.Q_h = batch.Q_h.view(-1, self.num_heads, self.out_dim)
@@ -194,10 +183,171 @@ class MultiHeadAttentionLayer(nn.Module):
         self.propagate_attention(batch)
         h_out = batch.wV
         e_out = batch.get('wE', None)
+        return h_out, e_out
 
-        # print("Out node shape is: ", h_out.shape)
-        # print("Out edge shape is: ", e_out.shape)
 
+@register_layer("LinearTransformer")
+class MultiHeadLinearAttentionLayer(nn.Module):
+    """
+        Linear Attention Computation for GRIT
+
+        Only to be used with RoGPE
+    """
+
+    def __init__(self, in_dim, out_dim, num_heads, use_bias=True,
+                 clamp=5., dropout=0., act=None,
+                 edge_enhance=True,
+                 sqrt_relu=False,
+                 signed_sqrt=True,
+                 cfg=CN(),
+                 num_angles=1,
+                 **kwargs):
+        super().__init__()
+
+
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.num_heads = num_heads
+        self.dropout = nn.Dropout(dropout)
+        self.clamp = np.abs(clamp) if clamp is not None else None
+        self.edge_enhance = edge_enhance
+
+        self.Q = nn.Linear(in_dim, out_dim * num_heads, bias=True)
+        self.K = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
+        self.E = nn.Linear(in_dim, out_dim * num_heads, bias=True)
+        self.Ew = nn.Linear(in_dim, out_dim * num_heads, bias=True)
+        self.V = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
+        nn.init.xavier_normal_(self.Q.weight)
+        nn.init.xavier_normal_(self.K.weight)
+        nn.init.xavier_normal_(self.E.weight)
+        nn.init.xavier_normal_(self.Ew.weight)
+        nn.init.xavier_normal_(self.V.weight)
+
+        self.Aw = nn.Parameter(torch.zeros(self.out_dim, self.num_heads, 1), requires_grad=True)
+        nn.init.xavier_normal_(self.Aw)
+
+        if self.edge_enhance:
+            self.VeRow = nn.Parameter(torch.zeros(self.out_dim, self.num_heads, self.out_dim), requires_grad=True)
+            nn.init.xavier_normal_(self.VeRow)
+        
+        # Soft partitioning method
+        self.num_angles = num_angles
+        self.S = nn.Linear(self.num_angles, self.out_dim * self.num_heads // 2, bias=True)
+        nn.init.xavier_normal_(self.S.weight)
+
+    def apply_rotation(self, batch, Q, K, E=None):
+        "Q,K,E shape is [-1, self.num_heads, self.out_dim]"
+        d = self.out_dim * self.num_heads
+        d_half = d // 2
+
+
+        # Node attribute rotation
+        # Second method
+        node_thetas = batch.node_rotation_angles.view(-1, self.num_angles)
+        node_thetas = self.S(node_thetas).repeat_interleave(2, dim=1).reshape(Q.shape)
+
+        # First method
+        # node_thetas = batch.node_rotation_angles.view(-1)
+        # node_thetas_power = torch.tensor([ -2*i/d for i in range(d_half)]).repeat_interleave(2, dim=0)
+        # node_thetas = torch.pow(node_thetas[None, :], node_thetas_power[:, None])
+        # node_thetas = node_thetas.reshape(Q.shape)
+
+        cos_pos = torch.cos(node_thetas)
+        sin_pos = torch.sin(node_thetas)
+
+        q2 = torch.stack([-Q[..., 1::2], Q[..., ::2]], dim=2)
+        k2 = torch.stack([-K[..., 1::2], K[..., ::2]], dim=2)
+
+        q2 = q2.reshape(Q.shape)
+        k2 = k2.reshape(K.shape)
+
+        Q = Q * cos_pos + q2 * sin_pos
+        K = K * cos_pos + k2 * sin_pos
+
+        # Edge attribute rotation
+        if batch.get("E", None) is not None and batch.get("edge_rotation_angles") is not None:
+            edge_thetas = batch.edge_rotation_angles.view(-1)
+            edge_thetas_power = torch.tensor([-2*i/d for i in range(d_half)]).repeat_interleave(2, dim=0)
+
+            edge_thetas = torch.pow(edge_thetas[None, :], edge_thetas_power[:,None])
+
+            edge_thetas = edge_thetas.reshape(E.shape)
+
+            cos_pos = torch.cos(edge_thetas)
+            sin_pos = torch.sin(edge_thetas)
+
+            e2 = torch.stack([-E[..., 1::2], E[..., ::2]], dim=2)
+
+            e2 = e2.reshape(E.shape)
+
+            E = E * cos_pos + e2 * sin_pos
+
+        return Q, K, E
+
+    def propagate_attention(self, batch):
+        src = batch.K_h[batch.edge_index[0]]                           # (num relative) x num_heads x out_dim
+        dest = batch.Q_h[batch.edge_index[1]]                          # (num relative) x num_heads x out_dim
+
+        score = src + dest                                             # linear attention ?
+
+        if batch.get("E", None) is not None:
+            batch.E = batch.E.reshape(score.shape)
+            score = score + batch.E
+
+        score /= 3
+
+        score = score.view(-1, self.num_heads, self.out_dim)
+
+        e_t = score
+
+        # final attn
+        score = oe.contract("ehd, dhc->ehc", score, self.Aw, backend="torch")
+        if self.clamp is not None:
+            score = torch.clamp(score, min=-self.clamp, max=self.clamp)
+
+        # output edge
+        if batch.get("E", None) is not None:
+            batch.wE = batch.Ew * score
+            batch.wE = batch.wE.view(-1, self.num_heads, self.out_dim)
+
+        score = pyg_softmax(score, batch.edge_index[1])  # (num relative) x num_heads x 1
+        score = self.dropout(score)
+        batch.attn = score
+
+        # Aggregate with Attn-Score
+        msg = batch.V_h[batch.edge_index[0]] * score  # (num relative) x num_heads x out_dim
+        batch.wV = torch.zeros_like(batch.V_h)  # (num nodes in batch) x num_heads x out_dim
+        scatter(msg, batch.edge_index[1], dim=0, out=batch.wV, reduce='add')
+
+        if self.edge_enhance and batch.E is not None:
+            rowV = scatter(e_t * score, batch.edge_index[1], dim=0, reduce="add")
+            rowV = oe.contract("nhd, dhc -> nhc", rowV, self.VeRow, backend="torch")
+            batch.wV = batch.wV + rowV
+
+    def forward(self, batch):
+        Q_h = self.Q(batch.x)
+        K_h = self.K(batch.x)
+        V_h = self.V(batch.x)
+
+        if batch.get("edge_attr", None) is not None:
+            batch.E = self.E(batch.edge_attr)
+            batch.Ew = self.Ew(batch.edge_attr).view(-1, self.num_heads, self.out_dim)
+        else:
+            batch.E = None
+
+        batch.Q_h = Q_h.view(-1, self.num_heads, self.out_dim)
+        batch.K_h = K_h.view(-1, self.num_heads, self.out_dim)
+        batch.V_h = V_h.view(-1, self.num_heads, self.out_dim)
+
+        batch.Q_h, batch.K_h, batch.E = self.apply_rotation(batch, batch.Q_h, batch.K_h, batch.E)
+
+        batch.Q_h = batch.Q_h.view(-1, self.num_heads, self.out_dim)
+        batch.K_h = batch.K_h.view(-1, self.num_heads, self.out_dim)
+        batch.E = batch.E.view(-1, self.num_heads, self.out_dim)
+
+        self.propagate_attention(batch)
+        h_out = batch.wV
+        e_out = batch.get('wE', None)
         return h_out, e_out
 
 class MultiHeadAttentionLayerGritSparse(nn.Module):
@@ -267,7 +417,6 @@ class MultiHeadAttentionLayerGritSparse(nn.Module):
         if self.clamp is not None:
             score = torch.clamp(score, min=-self.clamp, max=self.clamp)
 
-        print("Score attention shape is :", score.shape)
         raw_attn = score
         score = pyg_softmax(score, batch.edge_index[1])  # (num relative) x num_heads x 1
         score = self.dropout(score)
@@ -284,13 +433,10 @@ class MultiHeadAttentionLayerGritSparse(nn.Module):
             batch.wV = batch.wV + rowV
 
     def forward(self, batch):
-        print("Start attention process")
-        print("in_dim, out_dim, num_heads are :", self.in_dim, self.out_dim, self.num_heads)
-        print("input shape is", batch.x.shape)
         Q_h = self.Q(batch.x)
         K_h = self.K(batch.x)
-
         V_h = self.V(batch.x)
+
         if batch.get("edge_attr", None) is not None:
             batch.E = self.E(batch.edge_attr)
         else:
@@ -320,6 +466,7 @@ class GritTransformerLayer(nn.Module):
                  norm_e=True,
                  O_e=True,
                  cfg=dict(),
+                 num_angles=1,
                  **kwargs):
         super().__init__()
 
@@ -346,8 +493,8 @@ class GritTransformerLayer(nn.Module):
                     if out_dim % 2 != 0:
                         self.out_dim += self.num_heads
 
-        print("Beginning attention")
-        print("in, out, num_heads are :", self.in_dim, self.out_dim, self.num_heads, self.out_dim // self.num_heads)
+        # print("Beginning attention")
+        # print("in, out, num_heads are :", self.in_dim, self.out_dim, self.num_heads, self.out_dim // self.num_heads)
 
         self.out_channels = out_dim
         self.dropout = dropout
@@ -400,7 +547,7 @@ class GritTransformerLayer(nn.Module):
             )
 
         if cfg.attn.get('dotproduct_attn', False):
-            self.attention = MultiHeadAttentionLayer(
+            self.attention = MultiHeadDotProductAttentionLayer(
             in_dim=in_dim,
             out_dim=out_dim // num_heads,
             num_heads=num_heads,
@@ -413,6 +560,24 @@ class GritTransformerLayer(nn.Module):
             signed_sqrt=cfg.attn.get("signed_sqrt", False),
             scaled_attn =cfg.attn.get("scaled_attn", False),
             no_qk=cfg.attn.get("no_qk", False),
+            num_angles=num_angles
+        )
+
+        if cfg.attn.get('linear_attn', False):
+            self.attention = MultiHeadLinearAttentionLayer(
+            in_dim=in_dim,
+            out_dim=out_dim // num_heads,
+            num_heads=num_heads,
+            use_bias=cfg.attn.get("use_bias", False),
+            dropout=attn_dropout,
+            clamp=cfg.attn.get("clamp", 5.),
+            act=cfg.attn.get("act", "relu"),
+            edge_enhance=True,
+            sqrt_relu=cfg.attn.get("sqrt_relu", False),
+            signed_sqrt=cfg.attn.get("signed_sqrt", False),
+            scaled_attn =cfg.attn.get("scaled_attn", False),
+            no_qk=cfg.attn.get("no_qk", False),
+            num_angles=num_angles
         )
 
 
