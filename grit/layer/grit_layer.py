@@ -6,7 +6,6 @@ import torch_geometric as pyg
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_scatter import scatter, scatter_max, scatter_add
 
-from grit.utils import negate_edge_index
 from torch_geometric.graphgym.register import *
 import opt_einsum as oe
 
@@ -40,11 +39,9 @@ def pyg_softmax(src, index, num_nodes=None):
 
 
 @register_layer("DotProductTransformer")
-class MultiHeadDotProductAttentionLayer(nn.Module):
+class MultiHeadDotProductEdgeAttentionLayer(nn.Module):
     """
         Dot Product Attention Computation for GRIT
-        
-        Only to be used with RoGPE
     """
 
     def __init__(self, in_dim, out_dim, num_heads, use_bias=True,
@@ -156,7 +153,8 @@ class MultiHeadDotProductAttentionLayer(nn.Module):
         scatter(msg, batch.edge_index[1], dim=0, out=batch.wV, reduce='add')
 
         if self.edge_enhance and batch.E is not None:
-            rowV = scatter(e_t * score, batch.edge_index[1], dim=0, reduce="add")
+            rowV = torch.zeros_like(batch.wV)
+            scatter(e_t * score, batch.edge_index[1], dim=0, out=rowV, reduce="add")
             rowV = oe.contract("nhd, dhc -> nhc", rowV, self.VeRow, backend="torch")
             batch.wV = batch.wV + rowV
 
@@ -478,20 +476,20 @@ class GritTransformerLayer(nn.Module):
 
         # ensure that the output dimension is even with RoGPE
         # ensure that the output dimension is divisible by num_heads when using DotProduct attention
-        if cfg.attn.get('dotproduct_attn', False):
-            if out_dim % self.num_heads != 0:
-                warnings.warn("The output dimension is not divisible by the number of heads. The output dimension has been modified")
-                self.out_dim += self.out_dim % self.num_heads
-                if self.out_dim % 2 != 0:
-                    self.out_dim += self.num_heads
+        # if cfg.attn.get('dotproduct_attn', False):
+        #     if out_dim % self.num_heads != 0:
+        #         warnings.warn("The output dimension is not divisible by the number of heads. The output dimension has been modified")
+        #         self.out_dim += self.out_dim % self.num_heads
+        #         if self.out_dim % 2 != 0:
+        #             self.out_dim += self.num_heads
             
-            elif out_dim % 2 != 0:
-                warnings.warn("The output dimension of the Transformer layer is odd : to use RoGPE out_dim needs to be even. The output dimension has been modified")
-                self.out_dim += 1
-                if self.out_dim % self.num_heads != 0:
-                    self.out_dim += self.out_dim % self.num_heads
-                    if out_dim % 2 != 0:
-                        self.out_dim += self.num_heads
+        #     elif out_dim % 2 != 0:
+        #         warnings.warn("The output dimension of the Transformer layer is odd : to use RoGPE out_dim needs to be even. The output dimension has been modified")
+        #         self.out_dim += 1
+        #         if self.out_dim % self.num_heads != 0:
+        #             self.out_dim += self.out_dim % self.num_heads
+        #             if out_dim % 2 != 0:
+        #                 self.out_dim += self.num_heads
 
         # print("Beginning attention")
         # print("in, out, num_heads are :", self.in_dim, self.out_dim, self.num_heads, self.out_dim // self.num_heads)
@@ -547,7 +545,7 @@ class GritTransformerLayer(nn.Module):
             )
 
         if cfg.attn.get('dotproduct_attn', False):
-            self.attention = MultiHeadDotProductAttentionLayer(
+            self.attention = MultiHeadDotProductEdgeAttentionLayer(
             in_dim=in_dim,
             out_dim=out_dim // num_heads,
             num_heads=num_heads,

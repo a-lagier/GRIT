@@ -16,7 +16,170 @@ import warnings
 from collections import defaultdict
 
 
-def train_epoch(logger, loader, model, optimizer, scheduler, batch_accumulation):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import torch
+from torch_geometric.utils import to_dense_adj
+from torch_scatter import scatter
+import matplotlib.pyplot as plt
+
+
+def aggregate_k_hop(edge_index, angles, k, alpha=2.):
+    enhanced_angles = angles.clone()
+
+    f = lambda k : np.log(k + 1.)
+    # f = lambda k : np.exp(-k/2)
+    
+    k_paths = edge_index
+    row, col = k_paths
+    enhanced_angles += scatter(angles[col] * f(1), row, dim=0)
+
+    for k_ in range(2, k + 1):
+        edge1_idx, edge2_idx = torch.where(k_paths[1][:, None] == edge_index[0][None, :])
+
+        path_sources = k_paths[0][edge1_idx]
+        path_targets = edge_index[1][edge2_idx]
+        
+        k_paths = torch.stack([path_sources, path_targets], dim=0)
+
+        # Delete duplicates
+        k_paths = torch.tensor(np.unique(k_paths.cpu().numpy(), axis=1))
+        
+        if torch.cuda.is_available():
+            k_paths = k_paths.cuda()
+
+        row, col = k_paths
+        enhanced_angles += scatter(angles[col] * f(k), row, dim=0)
+
+    return enhanced_angles
+
+
+def display_grids(batch):
+    n = batch.num_nodes
+    d_angles = 10
+    k = 5
+
+    adj = to_dense_adj(batch.edge_index).view(n,n)
+
+    adj_k = adj.clone()
+    for _  in range(k-1):
+        adj_k += adj_k @ adj
+
+    std = 0.5
+    angles = torch.normal(0., std, size=(n, d_angles))
+
+
+    def similarity_func(X, sim_func="dot"):
+        # X of dimension (number of nodes, dim_angles)
+        if sim_func == "dot":
+            return X @ X.transpose(0,1)
+        elif sim_func == "norm":
+            norm = X.pow(2).sum(dim=1)
+            norm_1 = norm.view(-1, 1).repeat_interleave(n, dim=-1)
+            return norm_1 + norm_1.transpose(0,1) -2 * (X @ X.transpose(0,1))
+
+
+    angles_similarity = similarity_func(angles, sim_func="norm")
+
+    alpha = 1/10.
+    enhanced_angles_10 = aggregate_k_hop(batch.edge_index, angles, k=k, alpha=alpha)
+    enhanced_angles_10_similarity = similarity_func(enhanced_angles_10, sim_func="norm")
+
+    fig, ax = plt.subplots(nrows=2, ncols=2)
+    ax[0,0].imshow(adj)
+    ax[0,0].set_title("Adjacency matrix")
+
+    ax[1,0].imshow(angles_similarity)
+    ax[1,0].set_title("Angles similarity")
+
+    ax[0,1].imshow(adj_k)
+    ax[0,1].set_title(f"Adjacency matrix with k={k}")
+
+    ax[1,1].imshow(enhanced_angles_10_similarity)
+    ax[1,1].set_title(f"Enhanced angles similarity k={k}")
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def train_epoch(logger, loader, model, optimizer, scheduler, batch_accumulation, overfit=False):
     model.train()
     optimizer.zero_grad()
     time_start = time.time()
@@ -36,7 +199,7 @@ def train_epoch(logger, loader, model, optimizer, scheduler, batch_accumulation)
             _pred = pred_score.detach().to('cpu', non_blocking=True)
         loss.backward()
         # Parameters update after accumulating gradients for given num. batches.
-        if ((iter + 1) % batch_accumulation == 0) or (iter + 1 == len(loader)):
+        if overfit or ((iter + 1) % batch_accumulation == 0) or (iter + 1 == len(loader)):
             if cfg.optim.clip_grad_norm:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
@@ -49,6 +212,9 @@ def train_epoch(logger, loader, model, optimizer, scheduler, batch_accumulation)
                             params=cfg.params,
                             dataset_name=cfg.dataset.name)
         time_start = time.time()
+        if overfit:
+            print(batch)
+            break
 
 
 @torch.no_grad()
@@ -83,7 +249,7 @@ def eval_epoch(logger, loader, model, split='val'):
 
 
 @register_train('custom')
-def custom_train(loggers, loaders, model, optimizer, scheduler):
+def custom_train(loggers, loaders, model, optimizer, scheduler, overfit=False):
     """
     Customized training pipeline.
     Args:
@@ -92,6 +258,7 @@ def custom_train(loggers, loaders, model, optimizer, scheduler):
         model: GNN model
         optimizer: PyTorch optimizer
         scheduler: PyTorch learning rate scheduler
+        overfit: True if the training aim to overfit the model on one instance
     """
     # loggers[0].tb_writer.add_graph(model.model)
 
@@ -148,7 +315,13 @@ def custom_train(loggers, loaders, model, optimizer, scheduler):
         # with torch.autograd.detect_anomaly():
         start_time = time.perf_counter()
         train_epoch(loggers[0], loaders[0], model, optimizer, scheduler,
-                    cfg.optim.batch_accumulation)
+                    cfg.optim.batch_accumulation, overfit=False)
+
+        # if cur_epoch % 10 == 0:
+        #     for (_, b) in enumerate(loaders[0]):
+        #         display_grids(b)
+        #         break
+
         perf[0].append(loggers[0].write_epoch(cur_epoch))
 
         # debug = True

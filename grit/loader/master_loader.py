@@ -212,7 +212,8 @@ def load_dataset_master(format, name, dataset_dir):
     # compute max degree of all graph in datasets
     max_degree = 0
     for d in dataset:
-        max_degree = max(max_degree, int(degree(d.edge_index[0]).max()))
+        if len(d.edge_index[0]):
+            max_degre = max(max_degree, int(degree(d.edge_index[0]).max()))
     cfg.max_degree = max_degree + 1
 
     if pe_enabled_list:

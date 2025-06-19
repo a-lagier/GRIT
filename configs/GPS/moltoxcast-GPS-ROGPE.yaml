@@ -1,0 +1,86 @@
+# Original:  zinc-GRIT-2000.yaml
+out_dir: results
+metric_best: auc
+tensorboard_each_run: True  # Log to Tensorboard each run
+mlflow:
+  use: False
+  project: Exp
+  name: moltoxcast-GRIT-ROGPE
+wandb:
+  use: False
+  project: moltoxcast
+dataset:
+  format: OGB
+  name: ogbg-moltoxcast
+  task: graph
+  task_type: classification
+  transductive: False
+  node_encoder: True
+  node_encoder_name: Atom
+  edge_encoder: True
+  edge_encoder_name: Bond
+  pe_transform_on_the_fly: False
+posenc_ROGPE:
+  enable: True
+  coeffs:
+    enable: True
+    k_hop: 20
+    func_name: eigen
+  hidden_layers: 2
+  num_angles: 20
+  aggregate_range: 5
+train:
+  mode: custom
+  batch_size: 128
+  eval_period: 1
+  enable_ckpt: False  # Checkpointing can now be disabled to save I/O when e.g. just benchmarking.
+  ckpt_best: True  # WARNING: Checkpoint every epoch a better model is found may increase I/O significantly.
+  ckpt_clean: True # Delete old ckpt each time.
+model:
+  type: GritTransformer
+  loss_fun: cross_entropy
+  edge_decoding: dot
+  graph_pooling: add
+gt:
+  layer_type: GraphGPS
+  layers: 4
+  n_heads: 4
+  dim_hidden: 104  # `gt.dim_hidden` must match `gnn.dim_inner`
+  dropout: 0.1
+  layer_norm: False
+  batch_norm: True
+#  bn_momentum: 0.01
+  update_e: True
+  attn_dropout: 0.2
+  attn:
+    dense: False
+    dotproduct_attn: True
+    linear_attn: False
+    clamp: 5.
+    act: 'relu'
+    full_attn: True
+    edge_enhance: True
+    O_e: True
+    norm_e: True
+    fwl: False
+gnn:
+  layers_pre_mp: 1
+  layers_mp: 2
+  layers_post_mp: 1
+  dim_inner: 104
+  layer_type: generalconv
+  stage_type: stack
+  batchnorm: True
+  act: prelu
+  dropout: 0.0
+  agg: mean
+  normalize_adj: False
+optim:
+  clip_grad_norm: True
+  optimizer: adamW
+  weight_decay: 1e-5
+  base_lr: 1e-2
+  max_epoch: 1000
+  num_warmup_epochs: 50
+  scheduler: cosine_with_warmup
+  min_lr: 1e-8

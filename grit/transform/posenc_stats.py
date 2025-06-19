@@ -12,7 +12,8 @@ from functools import partial
 from .rrwp import add_full_rrwp
 from .mmsbm import add_mmsbm_enc
 from .rrwp_mmsbm import add_full_rrwp_mmsbm
-from .rogpe import add_rogpe, add_deg, compute_structure_coefficients, compute_distance_coefficients, compute_random_walk_coefficients
+from .rogpe import add_rogpe, add_deg, compute_structure_coefficients, compute_distance_coefficients,\
+                    compute_random_walk_coefficients, compute_eigen_coefficients
 
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
@@ -190,6 +191,8 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
                 coeff_func = compute_distance_coefficients
             elif coeff_func_name == "random_walk":
                 coeff_func = compute_random_walk_coefficients
+            elif coeff_func_name == "eigen":
+                coeff_func = compute_eigen_coefficients
             else:
                 raise ValueError(f"Unknown coeff function name {coeff_func_name}")
             data = add_rogpe(data, coeff_func, cfg)

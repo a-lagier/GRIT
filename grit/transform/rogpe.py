@@ -9,6 +9,7 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.transforms import BaseTransform
 from torch_geometric.graphgym.utils.comp_budget import params_count
 from torch_scatter import scatter, scatter_add, scatter_max
+from torch_geometric.utils import get_laplacian, to_scipy_sparse_matrix
 
 from torch_geometric.graphgym.config import cfg
 
@@ -50,14 +51,104 @@ def add_deg(data):
     return data
 
 
+def eigvec_normalizer(EigVecs, EigVals, normalization="L2", eps=1e-12):
+    """
+    Implement different eigenvector normalizations.
+    """
+
+    EigVals = EigVals.unsqueeze(0)
+
+    if normalization == "L1":
+        # L1 normalization: eigvec / sum(abs(eigvec))
+        denom = EigVecs.norm(p=1, dim=0, keepdim=True)
+
+    elif normalization == "L2":
+        # L2 normalization: eigvec / sqrt(sum(eigvec^2))
+        denom = EigVecs.norm(p=2, dim=0, keepdim=True)
+
+    elif normalization == "abs-max":
+        # AbsMax normalization: eigvec / max|eigvec|
+        denom = torch.max(EigVecs.abs(), dim=0, keepdim=True).values
+
+    elif normalization == "wavelength":
+        # AbsMax normalization, followed by wavelength multiplication:
+        # eigvec * pi / (2 * max|eigvec| * sqrt(eigval))
+        denom = torch.max(EigVecs.abs(), dim=0, keepdim=True).values
+        eigval_denom = torch.sqrt(EigVals)
+        eigval_denom[EigVals < eps] = 1  # Problem with eigval = 0
+        denom = denom * eigval_denom * 2 / np.pi
+
+    elif normalization == "wavelength-asin":
+        # AbsMax normalization, followed by arcsin and wavelength multiplication:
+        # arcsin(eigvec / max|eigvec|)  /  sqrt(eigval)
+        denom_temp = torch.max(EigVecs.abs(), dim=0, keepdim=True).values.clamp_min(eps).expand_as(EigVecs)
+        EigVecs = torch.asin(EigVecs / denom_temp)
+        eigval_denom = torch.sqrt(EigVals)
+        eigval_denom[EigVals < eps] = 1  # Problem with eigval = 0
+        denom = eigval_denom
+
+    elif normalization == "wavelength-soft":
+        # AbsSoftmax normalization, followed by wavelength multiplication:
+        # eigvec / (softmax|eigvec| * sqrt(eigval))
+        denom = (F.softmax(EigVecs.abs(), dim=0) * EigVecs.abs()).sum(dim=0, keepdim=True)
+        eigval_denom = torch.sqrt(EigVals)
+        eigval_denom[EigVals < eps] = 1  # Problem with eigval = 0
+        denom = denom * eigval_denom
+
+    else:
+        raise ValueError(f"Unsupported normalization `{normalization}`")
+
+    denom = denom.clamp_min(eps).expand_as(EigVecs)
+    EigVecs = EigVecs / denom
+
+    return EigVecs
+
+def get_lap_decomp_stats(evals, evects, max_freqs, eigvec_norm='L2'):
+    """Compute Laplacian eigen-decomposition-based PE stats of the given graph.
+
+    Args:
+        evals, evects: Precomputed eigen-decomposition
+        max_freqs: Maximum number of top smallest frequencies / eigenvecs to use
+        eigvec_norm: Normalization for the eigen vectors of the Laplacian
+    Returns:
+        Tensor (num_nodes, max_freqs, 1) eigenvalues repeated for each node
+        Tensor (num_nodes, max_freqs) of eigenvector values per node
+    """
+    N = len(evals)  # Number of nodes, including disconnected nodes.
+
+    # Keep up to the maximum desired number of frequencies.
+    idx = evals.argsort()[:max_freqs]
+    evals, evects = evals[idx], np.real(evects[:, idx])
+    evals = torch.from_numpy(np.real(evals)).clamp_min(0)
+
+    # Normalize and pad eigen vectors.
+    evects = torch.from_numpy(evects).float()
+    evects = eigvec_normalizer(evects, evals, normalization=eigvec_norm)
+    if N < max_freqs:
+        EigVecs = F.pad(evects, (0, max_freqs - N), value=0.)
+    else:
+        EigVecs = evects
+
+    # Pad and save eigenvalues.
+    if N < max_freqs:
+        EigVals = F.pad(evals, (0, max_freqs - N), value=0.).unsqueeze(0)
+    else:
+        EigVals = evals.unsqueeze(0)
+    EigVals = EigVals.repeat(N, 1).unsqueeze(2)
+
+    return EigVals, EigVecs
+
 def compute_structure_coefficients(data, cfg):
     """
         Structure coefficients : count the number of nodes of degree d at distance k
+
+        Invalid : the number of coefficient vary depending on the graph
     """
 
 
     # fetch number of coefficient to compute
-    output_shape = (cfg.posenc_ROGPE.coeffs.k_hop, cfg.max_degree)
+    k = cfg.posenc_ROGPE.coeffs.k_hop
+    output_shape = (k, cfg.max_degree)
     n_coeffs = output_shape[0] * output_shape[1]
     cfg.posenc_ROGPE.coeffs.n_coeffs = n_coeffs
 
@@ -85,6 +176,8 @@ def compute_structure_coefficients(data, cfg):
         for d_, c_ in zip(d, c):
             i,degree = d_
             coeffs_[i, k_, int(degree)] = int(c_)
+
+    coeffs_ = coeffs_.view(-1, n_coeffs)
 
     return coeffs_
 
@@ -147,6 +240,39 @@ def compute_random_walk_coefficients(data, cfg):
     coeffs_ = torch.stack(pe_list, dim=-1).diagonal().transpose(0,1)
 
     return coeffs_
+
+def compute_eigen_coefficients(data, cfg):
+    """
+        Eigen coefficients : compute eigenvectors/values
+    """
+    # fetch number of coefficient to compute
+    n = data.num_nodes
+    d = cfg.posenc_ROGPE.coeffs.k_hop # to be changed
+
+    output_shape = (2*d,)
+    cfg.posenc_ROGPE.coeffs.n_coeffs = 2*d
+
+    if data.is_undirected():
+        undir_edge_index = data.edge_index
+    else:
+        undir_edge_index = to_undirected(data.edge_index)
+
+    L = to_scipy_sparse_matrix(
+        *get_laplacian(undir_edge_index, normalization="sym", num_nodes=n)
+    )
+    evals_sn, evects_sn = np.linalg.eigh(L.toarray())
+    eigvals, eigvecs = get_lap_decomp_stats(
+        evals=evals_sn, evects=evects_sn,
+        max_freqs=d)
+
+    eigvals = eigvals.reshape(eigvecs.shape)
+
+    coeffs_ = torch.cat([eigvecs, eigvals], dim=1)
+
+    coeffs_[coeffs_.isnan()] = 0.
+
+    return coeffs_
+
     
 
 def add_rogpe(data, coeff_function, cfg, attr_name_coeffs="coeffs"):

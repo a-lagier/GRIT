@@ -107,17 +107,11 @@ class GritTransformer(torch.nn.Module):
                 aggregate_range = param.aggregate_range
 
                 self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_coeffs"]\
-                    (in_dim=rotation_dim, n_hidden_layers=param.hidden_layers, out_dim=num_angles, aggregate_range=aggregate_range)
-                self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_coeffs"]\
-                    (in_dim=2*rotation_dim, n_hidden_layers=param.hidden_layers)
-            
-            if hasattr(param, 'eigen') and param.eigen.enable:
-                in_dim = param.eigen.max_freqs
-                out_dim = param.eigen.out_dim
-                self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_eigen"]\
-                    (in_dim=in_dim, out_dim=out_dim, n_hidden_layers=param.hidden_layers)
-                self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_eigen"]\
-                    ()          
+                    (in_dim=rotation_dim, n_hidden_layers=param.hidden_layers, out_dim=num_angles,
+                    aggregate_range=aggregate_range, angle_model=param.get("angle_model", "MLP"), aggregation=param.get("aggregation", "mean"))
+                # self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_coeffs"]\
+                #     (in_dim=2*rotation_dim, n_hidden_layers=param.hidden_layers)      
+                self.rogpe_rel_encoder = register.edge_encoder_dict["DummyEdge"]    
 
 
         if cfg.gnn.layers_pre_mp > 0:
@@ -148,7 +142,9 @@ class GritTransformer(torch.nn.Module):
                 norm_e=cfg.gt.attn.norm_e,
                 O_e=cfg.gt.attn.O_e,
                 cfg=cfg.gt,
-                num_angles=cfg.get('posenc_ROGPE', dict()).get('num_angles', 1)
+                num_angles=cfg.get('posenc_ROGPE', dict()).get('num_angles', 1),
+                local_gnn_type="GAT",
+                global_model_type="Transformer"
             ))
         # layers = []
 
