@@ -12,12 +12,6 @@ from torch_scatter import scatter, scatter_add, scatter_max
 from torch_geometric.utils import get_laplacian, to_scipy_sparse_matrix
 
 from torch_geometric.graphgym.config import cfg
-
-from torch_geometric.utils import (
-    get_laplacian,
-    get_self_loop_attr,
-    to_scipy_sparse_matrix,
-)
 import torch_sparse
 from torch_sparse import SparseTensor
 

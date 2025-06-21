@@ -29,11 +29,13 @@ posenc_ROGPE:
   enable: True
   coeffs:
     enable: True
-    k_hop: 30
+    k_hop: 20
     func_name: eigen
-  hidden_layers: 1
+  hidden_layers: 2
   num_angles: 15
-  aggregate_range: 2
+  aggregate_range: 5
+  angle_model: DeepSet
+  aggregation: sum
 train:
   mode: custom
   batch_size: 32

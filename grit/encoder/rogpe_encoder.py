@@ -21,7 +21,7 @@ from time import time
 
 
 def aggregate_k_hop(edge_index, angles, k, alpha=2.):
-    # TODO : store the consecutive k_paths in memory to save some computation time
+    # TODO : add values to edges
     if k < 1:
         return angles
 
@@ -37,15 +37,14 @@ def aggregate_k_hop(edge_index, angles, k, alpha=2.):
     enhanced_angles += step_k
 
     for k_ in range(2, k + 1):
-        edge1_idx, edge2_idx = torch.where(k_paths[1][:, None] == edge_index[0][None, :])
+        src_idx, dest_idx = torch.where(k_paths[1][:, None] == edge_index[0][None, :])
 
-        path_sources = k_paths[0][edge1_idx]
-        path_targets = edge_index[1][edge2_idx]
+        src = k_paths[0][src_idx]
+        dest = edge_index[1][dest_idx]
         
-        k_paths = torch.stack([path_sources, path_targets], dim=0)
+        k_paths = torch.stack([src, dest], dim=0)
 
         # Delete duplicates
-        # TODO : take into account the number of duplicates in the aggregation
         k_paths = torch.tensor(np.unique(k_paths.cpu().numpy(), axis=1))
         
         if torch.cuda.is_available():
@@ -74,7 +73,8 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
     """
     def __init__(self, in_dim, n_hidden_layers, out_dim=1,
                 use_bias=False, dropout=0.1, aggregate_range=3,
-                pe_name="rogpe", angle_model="MLP", aggregation="mean"):
+                pe_name="rogpe", angle_model="MLP", aggregation="mean",
+                use_bn=True):
         super().__init__()
 
         self.in_dim = in_dim
@@ -84,6 +84,7 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
         self.n_hidden_layers = n_hidden_layers
         self.use_bias = use_bias
         self.dropout = dropout
+        self.use_bn = use_bn
 
         self.aggregate_range = aggregate_range
 
@@ -96,8 +97,7 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
             for _ in range(n_hidden_layers):
                 layers.extend([
                     nn.Linear(self.hidden_dim, self.hidden_dim, bias=self.use_bias),
-                    nn.ReLU(),
-                    nn.Dropout(dropout)
+                    nn.ReLU()
                 ])
             layers.append(nn.Linear(self.hidden_dim, self.out_dim))
 
@@ -106,6 +106,8 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
                     nn.init.xavier_normal_(l.weight)
 
             self.layers = nn.Sequential(*layers)
+            self.bn = nn.BatchNorm1d(num_features=out_dim) if use_bn else None
+            self.dropout = nn.Dropout(p=dropout)
         elif self.angle_model == "DeepSet":
 
             # Phi network: processes individual coefficients
@@ -115,8 +117,7 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
             for _ in range(n_hidden_layers + 2):
                 phi_layers.extend([
                     nn.Linear(prev_dim, self.hidden_dim),
-                    nn.ReLU(),
-                    nn.Dropout(dropout)
+                    nn.ReLU()
                 ])
                 prev_dim = self.hidden_dim
 
@@ -131,8 +132,7 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
             for _ in range(n_hidden_layers + 1):
                 rho_layers.extend([
                     nn.Linear(self.hidden_dim, self.hidden_dim),
-                    nn.ReLU(),
-                    nn.Dropout(dropout)
+                    nn.ReLU()
                 ])
             rho_layers.append(nn.Linear(self.hidden_dim, self.out_dim))
             
@@ -141,7 +141,8 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
                     nn.init.xavier_normal_(l.weight)
             
             self.rho = nn.Sequential(*rho_layers)
-
+            self.bn = nn.BatchNorm1d(num_features=out_dim) if use_bn else None
+            self.dropout = nn.Dropout(p=dropout)
 
 
         print(f"RoGPE node encoding model has {params_count(self)} parameters")
@@ -152,9 +153,126 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
 
         # Compute nodes angles
         if self.angle_model == "MLP":
-            batch.node_rotation_angles = self.layers(batch.coeffs) #+ 10000.0 # based on RoPE paper
+            X = self.layers(batch.coeffs) #+ 10000.0 # based on RoPE paper
         elif self.angle_model == "DeepSet":
-            # st = time()
+            # batch_flat of dimension (n_element, n_el_per_set, in_dim)
+            batch_flat = batch.coeffs.view(-1, self.in_dim, 1)
+
+            phi_out = self.phi(batch_flat)
+            
+            if self.aggregation == 'sum':
+                aggregated = torch.sum(phi_out, dim=1)
+            elif self.aggregation == 'mean':
+                aggregated = torch.mean(phi_out, dim=1)
+            elif self.aggregation == 'max':
+                aggregated = torch.max(phi_out, dim=1)[0]
+            else:
+                raise ValueError(f"Unknown aggregation: {self.aggregation}")
+            X = self.rho(aggregated)
+        
+
+        if self.bn is not None:
+            shape = X.size()
+            X = X.reshape(-1, shape[-1])
+            X = self.bn(X)
+            X = X.reshape(shape)
+
+        X = self.dropout(X)
+
+        # Enhance nodes angles by aggregating them with their neighbohrs'
+        batch.node_rotation_angles = aggregate_k_hop(batch.edge_index, X, self.aggregate_range)
+
+        return batch
+
+
+class RoGPEMultiNetworkNodeEncoder(torch.nn.Module):
+    """
+        RoGPE encoder for coeffs : given the degree coefficient, compute the rotation angle for each node
+
+        For each output dimension, we build one network of output dimension 1
+    """
+    def __init__(self, in_dim, n_hidden_layers, out_dim=1,
+                use_bias=False, dropout=0.1, aggregate_range=3,
+                pe_name="rogpe", angle_model="MLP", aggregation="mean"):
+        super().__init__()
+
+        self.n_networks = out_dim
+        self.in_dim = in_dim
+        self.hidden_dim = in_dim
+        self.out_dim = 1
+        self.n_hidden_layers = n_hidden_layers
+        self.use_bias = use_bias
+        self.dropout = dropout
+
+        self.aggregate_range = aggregate_range
+
+        self.angle_model = angle_model
+        self.aggregation = aggregation
+
+        self.models = []
+        for n in range(self.n_networks):
+            if self.angle_model == "MLP":
+                layers = [nn.Linear(self.in_dim, self.hidden_dim), nn.ReLU()]
+                for _ in range(n_hidden_layers):
+                    layers.extend([
+                        nn.Linear(self.hidden_dim, self.hidden_dim, bias=self.use_bias),
+                        nn.ReLU(),
+                        nn.Dropout(dropout)
+                    ])
+                layers.append(nn.Linear(self.hidden_dim, self.out_dim))
+
+                for l in layers:
+                    if isinstance(l, nn.Linear):
+                        nn.init.xavier_normal_(l.weight)
+
+                self.models.append(nn.Sequential(*layers))
+
+            elif self.angle_model == "DeepSet":
+
+                # Phi network: processes individual coefficients
+                # here we enforce that the elements of the set are of dimension 1
+                phi_layers = []
+                prev_dim = 1
+                for _ in range(n_hidden_layers + 2):
+                    phi_layers.extend([
+                        nn.Linear(prev_dim, self.hidden_dim),
+                        nn.ReLU(),
+                        nn.Dropout(dropout)
+                    ])
+                    prev_dim = self.hidden_dim
+
+                for l in phi_layers:
+                    if isinstance(l, nn.Linear):
+                        nn.init.xavier_normal_(l.weight)
+                
+                phi = nn.Sequential(*phi_layers)
+                
+                # Rho network: processes aggregated representation
+                rho_layers = []
+                for _ in range(n_hidden_layers + 1):
+                    rho_layers.extend([
+                        nn.Linear(self.hidden_dim, self.hidden_dim),
+                        nn.ReLU(),
+                        nn.Dropout(dropout)
+                    ])
+                rho_layers.append(nn.Linear(self.hidden_dim, self.out_dim))
+                
+                for l in rho_layers:
+                    if isinstance(l, nn.Linear):
+                        nn.init.xavier_normal_(l.weight)
+                
+                rho = nn.Sequential(*rho_layers)
+
+                self.models.append((phi, rho))
+
+    def forward(self, batch):
+        if sum([p.isnan().sum() for p in self.parameters()]):
+            warnings.warn("Nan parameters has been found in node angle network model")
+
+        # Compute nodes angles
+        if self.angle_model == "MLP":
+            batch.node_rotation_angles = self.layers(batch.coeffs)
+        elif self.angle_model == "DeepSet":
             # batch_flat of dimension (n_element, n_el_per_set, in_dim)
             batch_flat = batch.coeffs.view(-1, self.in_dim, 1)
 
@@ -169,15 +287,11 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
             else:
                 raise ValueError(f"Unknown aggregation: {self.aggregation}")
             batch.node_rotation_angles = self.rho(aggregated)
-            # print(f"DeepSet computation took {time() - st}sec")
 
         # Enhance nodes angles by aggregating them with their neighbohrs'
-        # st = time()
         batch.node_rotation_angles = aggregate_k_hop(batch.edge_index, batch.node_rotation_angles, self.aggregate_range)
-        # print(f"Aggregation computation took {time() - st} sec")
 
         return batch
-
 
 @register_edge_encoder('rogpe_linear_coeffs')
 class RoGPELinearEdgeEncoder(torch.nn.Module):

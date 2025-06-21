@@ -29,6 +29,8 @@ posenc_ROGPE:
   hidden_layers: 2
   num_angles: 20
   aggregate_range: 5
+  angle_model: DeepSet
+  aggregation: sum
 train:
   mode: custom
   batch_size: 128
