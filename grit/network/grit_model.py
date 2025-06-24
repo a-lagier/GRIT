@@ -102,7 +102,7 @@ class GritTransformer(torch.nn.Module):
             param = cfg.posenc_ROGPE
 
             if hasattr(param, 'coeffs') and param.coeffs.enable:
-                num_angles = param.get("num_angles", 1)
+                num_angles = 2 * cfg.gt.dim_hidden // cfg.gt.n_heads
                 rotation_dim = param.coeffs.n_coeffs
                 aggregate_range = param.aggregate_range
 

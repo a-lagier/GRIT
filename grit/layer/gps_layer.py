@@ -72,14 +72,6 @@ class MultiHeadSparseDotProductAttentionLayer(nn.Module):
         nn.init.xavier_normal_(self.K.weight)
         nn.init.xavier_normal_(self.V.weight)
 
-
-        # Soft partitioning method
-        self.num_angles = num_angles
-        self.S = nn.Parameter(torch.zeros(self.num_angles, self.out_dim * self.num_heads // 2), requires_grad=True)
-        self.softmax = nn.Softmax(dim=1)
-        nn.init.xavier_normal_(self.S)
-        # add normalization term
-
     def apply_rotation(self, batch, Q, K):
         "Q,K shape is [-1, self.num_heads, self.out_dim]"
         d = self.out_dim * self.num_heads
@@ -87,8 +79,7 @@ class MultiHeadSparseDotProductAttentionLayer(nn.Module):
 
         # Node attribute rotation
         # Second method with multiple angles
-        node_thetas = batch.node_rotation_angles.view(-1, self.num_angles)
-        node_thetas = (node_thetas @ self.softmax(self.S)).repeat_interleave(2, dim=1).reshape(Q.shape)
+        node_thetas = batch.node_rotation_angles.repeat_interleave(2, dim=1).reshape(Q.shape)
         
         # First method
         #node_thetas = batch.node_rotation_angles.view(-1)
@@ -339,7 +330,7 @@ class GPSLayer(nn.Module):
         # TODO : add possibility to change attention layer w.r.t cfg file 
         # TODO : allow out_dim not divisible by num_heads with a encoder layer
         if cfg.attn.get('dotproduct_attn', False):
-
+            global_model_type = "DotProduct"
             if cfg.attn.get('dense', False):
                 self.self_attn = MultiHeadDenseDotProductAttentionLayer(
                 in_dim=in_dim,
@@ -372,6 +363,10 @@ class GPSLayer(nn.Module):
                 no_qk=cfg.attn.get("no_qk", False),
                 num_angles=num_angles
             )
+        else:
+            global_model_type = "Transformer"
+            self.self_attn = torch.nn.MultiheadAttention(
+                dim_h, num_heads, dropout=self.attn_dropout, batch_first=True)
         self.global_model_type = global_model_type
 
         if self.layer_norm and self.batch_norm:
@@ -430,15 +425,12 @@ class GPSLayer(nn.Module):
         # Multi-head attention.
         if self.self_attn is not None:
             # TODO : uncomment below (maybe)
-            h_attn = self.self_attn(batch).reshape((-1, self.dim_h))
-            # h_dense, mask = to_dense_batch(h, batch.batch)
-            # if self.global_model_type == 'Transformer':
-            #     h_attn = self._sa_block(h_dense, None, ~mask)[mask]
-            # elif self.global_model_type == 'BiasedTransformer':
-            #     # Use Graphormer-like conditioning, requires `batch.attn_bias`.
-            #     h_attn = self._sa_block(h_dense, batch.attn_bias, ~mask)[mask]
-            # else:
-            #     raise RuntimeError(f"Unexpected {self.global_model_type}")
+
+            if self.global_model_type == 'Transformer':
+                h_dense, mask = to_dense_batch(h, batch.batch)
+                h_attn = self._sa_block(h_dense, None, ~mask)[mask]
+            elif self.global_model_type == "DotProduct":
+                h_attn = self.self_attn(batch).reshape((-1, self.dim_h))
 
             h_attn = self.dropout_attn(h_attn)
             h_attn = h_in1 + h_attn  # Residual connection.
