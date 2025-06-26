@@ -31,11 +31,16 @@ posenc_ROGPE:
     enable: True
     k_hop: 20
     func_name: eigen
-  hidden_layers: 2
-  num_angles: 15
-  aggregate_range: 5
-  angle_model: DeepSet
-  aggregation: sum
+  phis:
+    angle_model: MultiMLP
+    n_phis: 5
+    phis_hidden_dim: 16
+    phis_layers: 4
+    phis_activation: relu
+    phis_aggregate: mean
+  gamma:
+    gamma_range: 5
+    gamma_aggregation: sum
 train:
   mode: custom
   batch_size: 32
@@ -50,6 +55,7 @@ model:
   graph_pooling: add
 gt:
   layer_type: GraphGPS
+  mpnn_layer: GINE
   layers: 10
   n_heads: 8
   dim_hidden: 64  # `gt.dim_hidden` must match `gnn.dim_inner`
@@ -82,8 +88,10 @@ optim:
   clip_grad_norm: True
   optimizer: adamW
   weight_decay: 1e-5
-  base_lr: 5e-3
+  base_lr: 1e-3
   max_epoch: 2000
   num_warmup_epochs: 50
-  scheduler: cosine_with_warmup
+  scheduler: reduce_on_plateau
+  reduce_factor: 0.5
+  schedule_patience: 25
   min_lr: 1e-6

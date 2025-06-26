@@ -25,12 +25,17 @@ posenc_ROGPE:
   coeffs:
     enable: True
     k_hop: 20
-    func_name: distance
-  hidden_layers: 2
-  num_angles: 15
-  aggregate_range: 5
-  angle_model: DeepSet
-  aggregation: sum
+    func_name: eigen
+  phis:
+    angle_model: MultiMLP
+    n_phis: 5
+    phis_hidden_dim: 16
+    phis_layers: 4
+    phis_activation: relu
+    phis_aggregate: mean
+  gamma:
+    gamma_range: 5
+    gamma_aggregation: sum
 train:
   mode: custom
   batch_size: 128
@@ -45,6 +50,7 @@ model:
   graph_pooling: add
 gt:
   layer_type: GraphGPS
+  mpnn_layer: GINE
   layers: 4
   n_heads: 4
   dim_hidden: 104  # `gt.dim_hidden` must match `gnn.dim_inner`
