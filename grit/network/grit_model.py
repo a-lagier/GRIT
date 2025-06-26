@@ -101,17 +101,17 @@ class GritTransformer(torch.nn.Module):
         if hasattr(cfg, 'posenc_ROGPE') and cfg.posenc_ROGPE.enable:
             param = cfg.posenc_ROGPE
 
-            if hasattr(param, 'coeffs') and param.coeffs.enable:
-                num_angles = 2 * cfg.gt.dim_hidden // cfg.gt.n_heads
-                rotation_dim = param.coeffs.n_coeffs
-                aggregate_range = param.aggregate_range
+            num_angles = cfg.gt.dim_hidden // 2
+            rotation_dim = param.coeffs.n_coeffs
 
-                self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_coeffs"]\
-                    (in_dim=rotation_dim, n_hidden_layers=param.hidden_layers, out_dim=num_angles,
-                    aggregate_range=aggregate_range, angle_model=param.get("angle_model", "MLP"), aggregation=param.get("aggregation", "mean"))
-                # self.rogpe_rel_encoder = register.edge_encoder_dict["rogpe_linear_coeffs"]\
-                #     (in_dim=2*rotation_dim, n_hidden_layers=param.hidden_layers)      
-                self.rogpe_rel_encoder = register.edge_encoder_dict["DummyEdge"]    
+            param = param.phis
+            self.rogpe_abs_encoder = register.node_encoder_dict["rogpe_linear_coeffs"]\
+                (in_dim=rotation_dim, n_hidden_layers=param.phis_hidden_dim, out_dim=num_angles,
+                angle_model=param.angle_model, n_phis=param.n_phis, phis_hidden_dim=param.phis_hidden_dim,
+                phis_layers=param.phis_layers, phis_activation=param.phis_activation,
+                phis_aggregate=param.phis_aggregate, use_bn=True)
+    
+            self.rogpe_rel_encoder = register.edge_encoder_dict["DummyEdge"]    
 
 
         if cfg.gnn.layers_pre_mp > 0:
@@ -143,8 +143,9 @@ class GritTransformer(torch.nn.Module):
                 O_e=cfg.gt.attn.O_e,
                 cfg=cfg.gt,
                 num_angles=cfg.get('posenc_ROGPE', dict()).get('num_angles', 1),
-                local_gnn_type="GAT",
-                global_model_type="Transformer"
+                local_gnn_type=cfg.gt.get('mpnn_layer', None),
+                global_model_type="Transformer",
+                pna_degrees=None
             ))
         # layers = []
 

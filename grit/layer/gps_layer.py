@@ -306,6 +306,11 @@ class GPSLayer(nn.Module):
                                              out_channels=dim_h // num_heads,
                                              heads=num_heads,
                                              edge_dim=dim_h)
+        elif local_gnn_type == 'GINE':
+            gin_nn = nn.Sequential(Linear_pyg(dim_h, dim_h),
+                                   self.activation(),
+                                   Linear_pyg(dim_h, dim_h))
+            self.local_model = pygnn.GINEConv(gin_nn)
         elif local_gnn_type == 'PNA':
             # Defaults from the paper.
             # aggregators = ['mean', 'min', 'max', 'std']

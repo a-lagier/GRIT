@@ -23,13 +23,13 @@ from grit.network.deepset import DeepSets
 
 
 
-def aggregate_k_hop(edge_index, angles, k, alpha=2.):
+def aggregate_k_hop(edge_index, angles, k, aggregation="sum"):
     # TODO : add values to edges
     if k < 1:
         return angles
 
     # f = lambda k : np.log(k + 1.)
-    f = lambda k : np.exp(-alpha*k)
+    f = lambda k : np.exp(-k)
 
     enhanced_angles = angles
     step_k = torch.zeros_like(enhanced_angles)
@@ -37,7 +37,7 @@ def aggregate_k_hop(edge_index, angles, k, alpha=2.):
     k_paths = edge_index
     row, col = k_paths
     # degree_row, degree_col = degree[row], degree[col]
-    scatter(angles[col] * f(1), row, out=step_k, dim=0)
+    scatter(angles[col] * f(1), row, out=step_k, dim=0, reduce=aggregation)
     enhanced_angles += step_k
 
     for k_ in range(2, k + 1):
@@ -55,7 +55,7 @@ def aggregate_k_hop(edge_index, angles, k, alpha=2.):
             k_paths = k_paths.cuda()
 
         row, col = k_paths
-        scatter(angles[col] * f(k), row, out=step_k, dim=0)
+        scatter(angles[col] * f(k), row, out=step_k, dim=0, reduce=aggregation)
         enhanced_angles += step_k
 
     return enhanced_angles
@@ -76,8 +76,10 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
         RoGPE encoder for coeffs : given the degree coefficient, compute the rotation angle for each node
     """
     def __init__(self, in_dim, n_hidden_layers, out_dim=1,
-                use_bias=False, dropout=0.1, aggregate_range=3,
-                pe_name="rogpe", angle_model="MLP", aggregation="mean",
+                use_bias=False, dropout=0.1, pe_name="rogpe",
+                angle_model="MLP", n_phis=5, phis_hidden_dim=16,
+                phis_layers=4, phis_activation="relu", phis_aggregate="mean",
+                gamma_range=5, gamma_aggregate="sum",
                 use_bn=True):
         super().__init__()
 
@@ -90,11 +92,10 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
         self.dropout = dropout
         self.use_bn = use_bn
 
-        self.aggregate_range = aggregate_range
+        self.gamma_aggregate = gamma_aggregate
+        self.gamma_range = gamma_range
 
         self.angle_model = angle_model
-        self.aggregation = aggregation
-
 
         if self.angle_model == "MLP":
             self.fc = MLP(n_layers=self.n_hidden_layers+2, in_dims=self.in_dim, hidden_dims=self.hidden_dim,
@@ -104,9 +105,9 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
                                n_hidden_layers=self.n_hidden_layers, aggregation=self.aggregation,
                                dropout=self.dropout, use_bn=self.use_bn)
         elif self.angle_model == "MultiMLP":
-            self.fc = MultiMLP(n_layers=self.n_hidden_layers+2, in_dims=self.in_dim, hidden_dims=self.hidden_dim,
-                          out_dims=self.out_dim, use_bn=self.use_bn, activation="relu", dropout_prob=self.dropout,
-                          n_models=5, model_aggregation="mean")
+            self.fc = MultiMLP(n_layers=phis_layers, in_dims=self.in_dim, hidden_dims=phis_hidden_dim,
+                          out_dims=self.out_dim, use_bn=self.use_bn, activation=phis_activation, dropout_prob=self.dropout,
+                          n_models=n_phis, model_aggregation=phis_aggregate)
 
 
         print(f"RoGPE node encoding model has {params_count(self)} parameters")
@@ -119,7 +120,7 @@ class RoGPELinearNodeEncoder(torch.nn.Module):
         X = self.fc(batch.coeffs)
 
         # Enhance nodes angles by aggregating them with their neighbohrs'
-        batch.node_rotation_angles = aggregate_k_hop(batch.edge_index, X, self.aggregate_range)
+        batch.node_rotation_angles = aggregate_k_hop(batch.edge_index, X, self.gamma_range, self.gamma_aggregate)
 
         return batch
 
